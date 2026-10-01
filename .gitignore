@@ -20,6 +20,7 @@ debug.keystore.base64
 .build-outputs/
 build/
 app/build/
+admin/build/
 *.hprof
 *.pyc
 __pycache__/
