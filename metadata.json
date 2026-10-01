@@ -1,0 +1,6 @@
+{
+  "name": "ocaventeDz",
+  "description": "Algerian Classifieds & Marketplace Platform (User & Admin Apps, Node.js + PostgreSQL Backend, Zero Firebase)",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

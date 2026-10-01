@@ -1,11 +1,106 @@
-<div align="center">
+# ocaventeDz (أوكافونت ديزاد)
+### 🇩🇿 Algerian Classifieds & Marketplace Platform — 100% Firebase-Free
 
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+**ocaventeDz** هو منصة جزائرية متكاملة ومستقلة تمامًا للإعلانات المبوبة والتجارة الموثوقة عبر ولايات الجزائر الـ 58 (سيارات، عقارات، هواتف، كهرومنزلي، خدمات، إلخ).
 
-  <h1>Built with AI Studio</h2>
+تم تصميم وبناء هذا المشروع بهندسة معمارية مستقلة بالكامل **دون أي اعتماد على خدمات Google Firebase**.
 
-  <p>The fastest path from prompt to production with Gemini.</p>
+---
 
-  <a href="https://aistudio.google.com/apps">Start building</a>
+## 🏛️ بنية المشروع المعمارية (Architecture)
 
-</div>
+```
+ocaventeDz/
+├── app/                  # تطبيق المستخدم Android (dz.ocavente.app)
+├── admin/                # تطبيق الإدارة Android (dz.ocavente.admin)
+├── backend/              # خادم REST API (Node.js + TypeScript + Express)
+├── database/             # قاعدة بيانات PostgreSQL ومخطط Prisma
+├── shared/               # نماذج البيانات والعقود المشتركة (DTOs)
+├── .github/workflows/    # CI/CD مع فحص صارم لمنع Firebase
+└── README.md
+```
+
+---
+
+## 🚫 خلو تام من Firebase (Zero-Firebase Guarantee)
+- **قاعدة البيانات**: تم استبدال Firestore و Realtime Database بـ **PostgreSQL** و **Prisma ORM**.
+- **المصادقة**: تم استبدال Firebase Auth بنظام **JWT (Access Token + Refresh Token)** مع تشفير كلمات المرور باستخدام **bcrypt/Argon2**.
+- **الصلاحيات**: نظام **Role-Based Access Control (RBAC)** على مستوى الخادم (`USER`, `ADMIN`, `SUPER_ADMIN`).
+- **المعاملات المالية**: معاملات ذرية (`Prisma.$transaction`) تمنع تكرار شحن الرصيد وتحفظ سجل التدقيق (Audit Logs).
+- **التخزين**: خادم تخزين مستقل للملفات متوافق مع S3 و Express Static.
+
+---
+
+## 📱 1. تطبيق المستخدم (`dz.ocavente.app`)
+- **الرئيسية**: استعراض أحدث الإعلانات مع فلترة الولايات الـ 58 والتصنيفات، وبانر ترويجي.
+- **البحث والفلترة**: بحث نصي فوري، فرز حسب السعر والتصنيف والولاية.
+- **إضافة إعلان**: إرسال الإعلان مع الصور والمواصفات إلى قائمة الانتظار للمراجعة (`PENDING`).
+- **تفاصيل الإعلان**: معرض الصور، السعر بالدينار الجزائري (د.ج)، زر الاتصال المباشر عبر الهاتف، وزر المراسلة عبر الواتساب.
+- **المحفظة والرصيد**: عرض الرصيد، طلب شحن الرصيد عبر **BaridiMob** أو **CCP** مع رفع رقم العملية/الوصل، وسجل العمليات المالية.
+- **الملف الشخصي والإشعارات**: إدارة إعلانات المستخدم، المفضلة، الإشعارات، وإعدادات خادم الـ API.
+
+---
+
+## 🛡️ 2. تطبيق الإدارة (`dz.ocavente.admin`)
+- **لوحة التحكم (Dashboard)**: مؤشرات حية لعدد المستخدمين، الإعلانات المعلقة، طلبات الشحن، وحجم التداول الإجمالي.
+- **مراجعة الإعلانات (Moderation)**: معاينة الإعلانات المعلقة وقبولها أو رفضها مع كتابة سبب الرفض وإشعار المستخدم.
+- **إدارة طلبات شحن الرصيد**: مراجعة مبالغ التحويل وأرقام وصولات BaridiMob/CCP، وتأكيد الطلب الذي يقوم تلقائياً بزيادة رصيد المستخدم في قاعدة البيانات عبر Transaction آمنة.
+- **إدارة المستخدمين**: استعراض الحسابات، تغيير الرتب، حظر أو إلغاء حظر الحسابات المشبوهة.
+- **سجل العمليات والرقابة (Audit Logs)**: تسجيل كل إجراء إداري مع هوية المشرف والوقت ونوع الإجراء.
+
+---
+
+## 🚀 3. تشغيل الـ Backend وقاعدة البيانات
+
+### المتطلبات:
+- Node.js 18+
+- PostgreSQL 14+
+
+### خطوات التشغيل:
+```bash
+# 1. الدخول لمجلد backend
+cd backend
+
+# 2. تثبيت الحزم
+npm install
+
+# 3. إعداد متغيرات البيئة
+cp .env.example .env
+
+# 4. دفع المخطط وتوليد Prisma Client
+npx prisma db push --schema=../database/schema.prisma
+
+# 5. بذر البيانات الافتراضية والتصنيفات وحساب المشرف
+npm run db:seed
+
+# 6. تشغيل الخادم
+npm run dev
+```
+
+الخادم سيعمل على: `http://localhost:4000`  
+فحص الحالة: `http://localhost:4000/api/health`
+
+**بيانات الدخول الافتراضية للمشرف:**
+- البريد الإلكتروني: `admin@ocavente.dz`
+- كلمة المرور: `Admin@123456`
+
+---
+
+## 📱 4. بناء تطبيقات Android
+
+```bash
+# بناء تطبيق المستخدم
+gradle :app:assembleDebug
+
+# بناء تطبيق الإدارة
+gradle :admin:assembleDebug
+```
+
+---
+
+## 🔒 الأمان والحماية
+1. حماية كاملة ضد هجمات **IDOR** (التحقق من ملكية السجل من جهة الخادم).
+2. تشفير لكلمات المرور بملح أمني (Salt Rounds 12).
+3. معالجة العمليات المالية بحركات ذرية **Atomic Database Transactions**.
+4. تأمين رؤوس HTTP باستخدام **Helmet** وسياسة **CORS** محددة.
+5. التحقق من صحة المدخلات عبر **Zod Validation Schemas**.
