@@ -1,34 +1,68 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
 package com.example.ui.screens.auth
 
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.MarkEmailRead
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.LockReset
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.example.ui.components.OcaSubTopBar
-import com.example.ui.components.PrimaryButton
-import com.example.ui.theme.OcaGreenPrimary
+import androidx.compose.ui.unit.sp
+import com.example.ui.theme.EmeraldPrimary
+import com.example.ui.viewmodel.MarketplaceViewModel
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ForgotPasswordScreen(
-    onBackClick: () -> Unit
+    viewModel: MarketplaceViewModel,
+    onBack: () -> Unit,
+    onLogin: () -> Unit
 ) {
-    var emailOrPhone by remember { mutableStateOf("") }
-    var isSubmitted by remember { mutableStateOf(false) }
+    var identifier by remember { mutableStateOf("") }
+    var isSubmitting by remember { mutableStateOf(false) }
+    var feedback by remember { mutableStateOf<String?>(null) }
+    var isError by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
-            OcaSubTopBar(
-                title = "استرجاع الحساب",
-                onBackClick = onBackClick
+            TopAppBar(
+                title = { Text("استعادة كلمة المرور", fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "رجوع")
+                    }
+                }
             )
         }
     ) { padding ->
@@ -36,71 +70,92 @@ fun ForgotPasswordScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .padding(horizontal = 24.dp)
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            if (!isSubmitted) {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = "نسيت كلمة المرور؟",
-                        style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold)
-                    )
-                    Text(
-                        text = "أدخل بريدك الإلكتروني أو رقم هاتفك المسجل وسنرسل لك رمز التأكيد لإعادة تعيين كلمة المرور.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+            Spacer(modifier = Modifier.height(30.dp))
+            Icon(
+                imageVector = Icons.Default.LockReset,
+                contentDescription = null,
+                tint = EmeraldPrimary,
+                modifier = Modifier.height(52.dp)
+            )
+            Text(
+                text = "هل نسيت كلمة المرور؟",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+            Text(
+                text = "أدخل البريد الإلكتروني أو رقم الهاتف المرتبط بحسابك لبدء الاستعادة.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                fontSize = 14.sp
+            )
+            Spacer(modifier = Modifier.height(10.dp))
 
-                OutlinedTextField(
-                    value = emailOrPhone,
-                    onValueChange = { emailOrPhone = it },
-                    label = { Text("البريد الإلكتروني أو الهاتف") },
-                    placeholder = { Text("example@mail.com أو 05xxxxxxxx") },
-                    leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
-                    singleLine = true,
-                    shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("forgot_pass_input")
-                )
+            OutlinedTextField(
+                value = identifier,
+                onValueChange = { identifier = it; feedback = null },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("البريد الإلكتروني أو الهاتف") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                singleLine = true,
+                enabled = !isSubmitting
+            )
 
-                PrimaryButton(
-                    text = "إرسال رمز الاسترجاع",
-                    enabled = emailOrPhone.isNotBlank(),
-                    onClick = { isSubmitted = true },
-                    testTag = "send_reset_code_btn"
-                )
-            } else {
-                Spacer(modifier = Modifier.height(40.dp))
-                Icon(
-                    imageVector = Icons.Default.MarkEmailRead,
-                    contentDescription = null,
-                    tint = OcaGreenPrimary,
-                    modifier = Modifier.size(64.dp)
-                )
+            feedback?.let {
                 Text(
-                    text = "تم إرسال تعليمات الاسترجاع",
-                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                    text = it,
+                    color = if (isError) MaterialTheme.colorScheme.error else EmeraldPrimary,
+                    fontSize = 13.sp,
                     textAlign = TextAlign.Center
-                )
-                Text(
-                    text = "إذا كان الحساب $emailOrPhone مسجلاً لدينا، فستصلك رسالة تحتوي على رابط ورمز لإعادة تعيين كلمة المرور.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center
-                )
-                Spacer(modifier = Modifier.height(24.dp))
-                PrimaryButton(
-                    text = "العودة لتسجيل الدخول",
-                    onClick = onBackClick,
-                    testTag = "back_to_login_btn"
                 )
             }
+
+            Button(
+                onClick = {
+                    isSubmitting = true
+                    feedback = null
+                    viewModel.requestPasswordReset(
+                        identifier = identifier,
+                        onSuccess = {
+                            isSubmitting = false
+                            isError = false
+                            feedback = it
+                        },
+                        onError = {
+                            isSubmitting = false
+                            isError = true
+                            feedback = it
+                        }
+                    )
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp),
+                enabled = !isSubmitting,
+                colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary)
+            ) {
+                if (isSubmitting) {
+                    CircularProgressIndicator(color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.height(22.dp))
+                } else {
+                    Text("متابعة الاستعادة", fontWeight = FontWeight.Bold)
+                }
+            }
+
+            TextButton(onClick = onLogin, enabled = !isSubmitting) {
+                Text("العودة إلى تسجيل الدخول")
+            }
+            Text(
+                text = "المصادقة السحابية غير مفعّلة حاليًا. بعد ربط Firebase Authentication سيتم إرسال رابط استعادة فعلي إلى البريد.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 11.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(bottom = 24.dp)
+            )
         }
     }
 }

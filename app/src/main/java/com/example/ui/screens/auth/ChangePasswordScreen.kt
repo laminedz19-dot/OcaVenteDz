@@ -1,134 +1,80 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
 package com.example.ui.screens.auth
 
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.unit.dp
-import com.example.ui.components.InfoDialog
-import com.example.ui.components.OcaSubTopBar
-import com.example.ui.components.PrimaryButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material3.Button
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.ui.viewmodel.MarketplaceViewModel
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChangePasswordScreen(
-    onBackClick: () -> Unit
+    viewModel: MarketplaceViewModel,
+    onBack: () -> Unit
 ) {
-    var oldPassword by remember { mutableStateOf("") }
+    var currentPassword by remember { mutableStateOf("") }
     var newPassword by remember { mutableStateOf("") }
-    var confirmNewPassword by remember { mutableStateOf("") }
-    var showDialog by remember { mutableStateOf(false) }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var confirmation by remember { mutableStateOf("") }
+    var message by remember { mutableStateOf<String?>(null) }
+    var isError by remember { mutableStateOf(false) }
 
-    Scaffold(
-        topBar = {
-            OcaSubTopBar(
-                title = "تغيير كلمة المرور",
-                onBackClick = onBackClick
-            )
-        }
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Text(
-                text = "اختر كلمة مرور قوية",
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
-            )
-            Text(
-                text = "يجب أن تحتوي كلمة المرور على 8 أحرف على الأقل، مع مزيج من الحروف والأرقام لضمان حماية حسابك.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            if (errorMessage != null) {
-                Surface(
-                    color = MaterialTheme.colorScheme.errorContainer,
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        text = errorMessage!!,
-                        color = MaterialTheme.colorScheme.onErrorContainer,
-                        modifier = Modifier.padding(12.dp)
-                    )
-                }
-            }
-
-            OutlinedTextField(
-                value = oldPassword,
-                onValueChange = { oldPassword = it; errorMessage = null },
-                label = { Text("كلمة المرور الحالية") },
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                singleLine = true,
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth().testTag("current_pass_input")
-            )
-
-            OutlinedTextField(
-                value = newPassword,
-                onValueChange = { newPassword = it; errorMessage = null },
-                label = { Text("كلمة المرور الجديدة") },
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                singleLine = true,
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth().testTag("new_pass_input")
-            )
-
-            OutlinedTextField(
-                value = confirmNewPassword,
-                onValueChange = { confirmNewPassword = it; errorMessage = null },
-                label = { Text("تأكيد كلمة المرور الجديدة") },
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                singleLine = true,
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth().testTag("confirm_new_pass_input")
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            PrimaryButton(
-                text = "حفظ كلمة المرور الجديدة",
-                onClick = {
-                    if (oldPassword.isBlank() || newPassword.isBlank()) {
-                        errorMessage = "يرجى إدخال جميع الحقول"
-                    } else if (newPassword != confirmNewPassword) {
-                        errorMessage = "كلمتا المرور الجديدتان غير متطابقتين"
-                    } else if (newPassword.length < 6) {
-                        errorMessage = "يجب أن تكون كلمة المرور 6 أحرف على الأقل"
-                    } else {
-                        showDialog = true
-                    }
-                },
-                testTag = "save_new_pass_btn"
-            )
-        }
-
-        InfoDialog(
-            show = showDialog,
-            title = "تم بنجاح",
-            message = "تم تغيير كلمة المرور الخاصة بحسابك بنجاح.",
-            onDismiss = {
-                showDialog = false
-                onBackClick()
-            }
+    Scaffold(topBar = {
+        TopAppBar(
+            title = { Text("تغيير كلمة المرور", fontWeight = FontWeight.Bold) },
+            navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "رجوع") } }
         )
+    }) { padding ->
+        Column(
+            modifier = Modifier.fillMaxSize().padding(padding).padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(Icons.Default.Lock, null, tint = MaterialTheme.colorScheme.primary)
+            Text("حماية حسابك", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Text("أدخل كلمة المرور الحالية والجديدة.", color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center, fontSize = 13.sp)
+            OutlinedTextField(currentPassword, { currentPassword = it; message = null }, Modifier.fillMaxWidth(), label = { Text("كلمة المرور الحالية") }, visualTransformation = PasswordVisualTransformation())
+            OutlinedTextField(newPassword, { newPassword = it; message = null }, Modifier.fillMaxWidth(), label = { Text("كلمة المرور الجديدة") }, visualTransformation = PasswordVisualTransformation())
+            OutlinedTextField(confirmation, { confirmation = it; message = null }, Modifier.fillMaxWidth(), label = { Text("تأكيد كلمة المرور الجديدة") }, visualTransformation = PasswordVisualTransformation())
+            message?.let { Text(it, color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary, textAlign = TextAlign.Center, fontSize = 13.sp) }
+            Button(
+                onClick = {
+                    viewModel.changePassword(currentPassword, newPassword, confirmation,
+                        onSuccess = { isError = false; message = it },
+                        onError = { isError = true; message = it })
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("حفظ كلمة المرور الجديدة", fontWeight = FontWeight.Bold) }
+            Spacer(modifier = Modifier.height(16.dp))
+        }
     }
 }

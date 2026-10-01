@@ -1,45 +1,74 @@
 package com.example.ui.screens.auth
 
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Login
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.ui.components.OcaSubTopBar
-import com.example.ui.components.PrimaryButton
-import com.example.ui.theme.OcaGreenPrimary
+import com.example.ui.theme.EmeraldPrimary
+import com.example.ui.viewmodel.MarketplaceViewModel
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LoginScreen(
-    onLoginSuccess: () -> Unit,
-    onNavigateToRegister: () -> Unit,
-    onNavigateToForgotPassword: () -> Unit,
-    onBackClick: () -> Unit
+    viewModel: MarketplaceViewModel,
+    onBack: () -> Unit,
+    onLoggedIn: () -> Unit,
+    onRegister: () -> Unit,
+    onForgotPassword: () -> Unit,
+    onGoogleLogin: () -> Unit,
+    onAppleLogin: () -> Unit
 ) {
-    var emailOrPhone by remember { mutableStateOf("") }
+    var identifier by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    var isPasswordVisible by remember { mutableStateOf(false) }
+    var isSubmitting by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
-    var isLoading by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
-            OcaSubTopBar(
-                title = "تسجيل الدخول",
-                onBackClick = onBackClick
+            TopAppBar(
+                title = { Text("تسجيل الدخول", fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "رجوع")
+                    }
+                }
             )
         }
     ) { padding ->
@@ -47,135 +76,121 @@ fun LoginScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
+                .padding(horizontal = 24.dp)
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(
-                    text = "مرحباً بك مجدداً!",
-                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold)
-                )
-                Text(
-                    text = "سجل دخولك لمتابعة إعلاناتك، محادثاتك ومفضلاتك",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+            Spacer(modifier = Modifier.height(30.dp))
+            Icon(
+                imageVector = Icons.Default.Login,
+                contentDescription = null,
+                tint = EmeraldPrimary,
+                modifier = Modifier.height(52.dp)
+            )
+            Text(
+                text = "مرحبًا بعودتك",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = "أدخل رقم الهاتف أو البريد الإلكتروني المرتبط بحسابك.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                fontSize = 14.sp
+            )
+            Spacer(modifier = Modifier.height(10.dp))
 
-            if (errorMessage != null) {
-                Surface(
-                    color = MaterialTheme.colorScheme.errorContainer,
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        text = errorMessage!!,
-                        color = MaterialTheme.colorScheme.onErrorContainer,
-                        modifier = Modifier.padding(12.dp),
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                }
-            }
-
-            // Email or Phone Field
             OutlinedTextField(
-                value = emailOrPhone,
-                onValueChange = {
-                    emailOrPhone = it
-                    errorMessage = null
-                },
-                label = { Text("البريد الإلكتروني أو رقم الهاتف") },
-                placeholder = { Text("05xx xx xx xx أو example@email.dz") },
-                leadingIcon = {
-                    Icon(imageVector = Icons.Default.Email, contentDescription = null)
-                },
+                value = identifier,
+                onValueChange = { identifier = it; errorMessage = null },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("الهاتف أو البريد الإلكتروني") },
+                leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                 singleLine = true,
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("login_email_input")
+                enabled = !isSubmitting
             )
 
-            // Password Field
             OutlinedTextField(
                 value = password,
-                onValueChange = {
-                    password = it
-                    errorMessage = null
-                },
+                onValueChange = { password = it; errorMessage = null },
+                modifier = Modifier.fillMaxWidth(),
                 label = { Text("كلمة المرور") },
-                placeholder = { Text("أدخل كلمة المرور") },
-                leadingIcon = {
-                    Icon(imageVector = Icons.Default.Lock, contentDescription = null)
-                },
-                trailingIcon = {
-                    IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
-                        Icon(
-                            imageVector = if (isPasswordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                            contentDescription = if (isPasswordVisible) "إخفاء كلمة المرور" else "إظهار كلمة المرور"
-                        )
-                    }
-                },
-                visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
+                visualTransformation = PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 singleLine = true,
-                shape = RoundedCornerShape(14.dp),
+                enabled = !isSubmitting
+            )
+
+            errorMessage?.let {
+                Text(it, color = MaterialTheme.colorScheme.error, fontSize = 13.sp, textAlign = TextAlign.Center)
+            }
+
+            Button(
+                onClick = {
+                    if (identifier.isBlank()) {
+                        errorMessage = "يرجى إدخال رقم الهاتف أو البريد الإلكتروني"
+                        return@Button
+                    }
+                    if (password.isBlank()) {
+                        errorMessage = "يرجى إدخال كلمة المرور"
+                        return@Button
+                    }
+                    isSubmitting = true
+                    errorMessage = null
+                    viewModel.loginUser(
+                        identifier = identifier,
+                        password = password,
+                        onSuccess = {
+                            isSubmitting = false
+                            onLoggedIn()
+                        },
+                        onError = {
+                            isSubmitting = false
+                            errorMessage = it
+                        }
+                    )
+                },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .testTag("login_password_input")
-            )
-
-            // Forgot Password
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
+                    .height(52.dp),
+                enabled = !isSubmitting,
+                colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary)
             ) {
-                TextButton(onClick = onNavigateToForgotPassword) {
-                    Text(
-                        text = "نسيت كلمة المرور؟",
-                        color = OcaGreenPrimary,
-                        style = MaterialTheme.typography.labelLarge
-                    )
+                if (isSubmitting) {
+                    CircularProgressIndicator(color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.height(22.dp))
+                } else {
+                    Text("تسجيل الدخول", fontWeight = FontWeight.Bold)
                 }
             }
 
-            // Submit Button
-            PrimaryButton(
-                text = if (isLoading) "جاري التحقق..." else "دخول",
-                enabled = !isLoading,
-                onClick = {
-                    if (emailOrPhone.isBlank() || password.isBlank()) {
-                        errorMessage = "يرجى ملء جميع الحقول للمتابعة"
-                    } else {
-                        isLoading = true
-                        onLoginSuccess()
-                    }
-                },
-                testTag = "login_submit_btn"
-            )
+            Text("أو الدخول باستخدام", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+            OutlinedButton(
+                onClick = onGoogleLogin,
+                modifier = Modifier.fillMaxWidth().height(46.dp),
+                enabled = !isSubmitting
+            ) {
+                Text("G", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                Text("  تسجيل الدخول عبر Google", fontWeight = FontWeight.SemiBold)
+            }
+            OutlinedButton(
+                onClick = onAppleLogin,
+                modifier = Modifier.fillMaxWidth().height(46.dp),
+                enabled = !isSubmitting
+            ) {
+                Text("", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text("  تسجيل الدخول عبر Apple", fontWeight = FontWeight.SemiBold)
+            }
 
+            TextButton(onClick = onRegister, enabled = !isSubmitting) {
+                Text("ليس لديك حساب؟ التسجيل الآن")
+            }
+            TextButton(onClick = onForgotPassword, enabled = !isSubmitting) {
+                Text("نسيت كلمة المرور؟ استعادتها")
+            }
             Spacer(modifier = Modifier.height(16.dp))
-
-            // Switch to Register
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "ليس لديك حساب؟",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                TextButton(onClick = onNavigateToRegister) {
-                    Text(
-                        text = "إنشاء حساب الآن",
-                        color = OcaGreenPrimary,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
         }
     }
 }

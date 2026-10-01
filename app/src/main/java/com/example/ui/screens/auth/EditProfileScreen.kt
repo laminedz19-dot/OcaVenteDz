@@ -1,190 +1,189 @@
 package com.example.ui.screens.auth
 
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.LocationCity
+import androidx.compose.material.icons.filled.Save
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.example.ui.components.InfoDialog
-import com.example.ui.components.OcaSubTopBar
-import com.example.ui.components.PrimaryButton
-import com.example.ui.components.UserAvatar
-import com.example.ui.components.WilayaPickerBottomSheet
-import com.example.ui.model.UserProfile
-import com.example.ui.model.Wilaya
-import com.example.ui.model.WilayasData
-import com.example.ui.theme.OcaGreenPrimary
+import androidx.compose.ui.unit.sp
+import com.example.data.local.UserEntity
+import com.example.data.model.AlgeriaWilayas
+import com.example.ui.theme.EmeraldPrimary
+import com.example.ui.viewmodel.MarketplaceViewModel
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EditProfileScreen(
-    userProfile: UserProfile,
-    onSaveProfile: (UserProfile) -> Unit,
-    onBackClick: () -> Unit
+    user: UserEntity,
+    viewModel: MarketplaceViewModel,
+    onBack: () -> Unit,
+    onSaved: () -> Unit
 ) {
-    var name by remember { mutableStateOf(userProfile.name) }
-    var email by remember { mutableStateOf(userProfile.email) }
-    var phone by remember { mutableStateOf(userProfile.phone) }
-    var selectedWilayaCode by remember { mutableIntStateOf(userProfile.wilayaCode) }
-    var selectedWilayaName by remember { mutableStateOf(userProfile.wilayaName) }
-    var showWilayaSheet by remember { mutableStateOf(false) }
-    var showSuccessDialog by remember { mutableStateOf(false) }
+    var name by remember { mutableStateOf(user.name) }
+    var phone by remember { mutableStateOf(user.phone) }
+    var email by remember { mutableStateOf(user.email) }
+    var wilaya by remember { mutableStateOf(user.wilaya) }
+    var commune by remember { mutableStateOf(user.commune) }
+    var bio by remember { mutableStateOf(user.bio) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var saving by remember { mutableStateOf(false) }
 
-    Scaffold(
-        topBar = {
-            OcaSubTopBar(
-                title = "تعديل الملف الشخصي",
-                onBackClick = onBackClick
-            )
+    var isWilayaExpanded by remember { mutableStateOf(false) }
+    var isCommuneExpanded by remember { mutableStateOf(false) }
+
+    val selectedWilayaObj = remember(wilaya) {
+        AlgeriaWilayas.list.find {
+            "${it.code} - ${it.nameAr}".equals(wilaya.trim(), ignoreCase = true) ||
+            it.nameAr.equals(wilaya.trim(), ignoreCase = true) ||
+            wilaya.trim().startsWith("${it.code} ")
         }
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp)
-        ) {
-            // Avatar Header
-            Box(
-                modifier = Modifier.fillMaxWidth(),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    UserAvatar(name = name, size = 80.dp)
-                    Text(
-                        text = "تغيير الصورة الشخصية",
-                        color = OcaGreenPrimary,
-                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
-                    )
-                }
-            }
+    }
+    val currentCommunes = selectedWilayaObj?.communes ?: emptyList()
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Name
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                label = { Text("الاسم الكامل") },
-                leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
-                singleLine = true,
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth().testTag("edit_name_input")
-            )
-
-            // Phone
-            OutlinedTextField(
-                value = phone,
-                onValueChange = { phone = it },
-                label = { Text("رقم الهاتف") },
-                leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                singleLine = true,
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth().testTag("edit_phone_input")
-            )
-
-            // Email (read-only or editable)
-            OutlinedTextField(
-                value = email,
-                onValueChange = { email = it },
-                label = { Text("البريد الإلكتروني") },
-                leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                singleLine = true,
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth().testTag("edit_email_input")
-            )
-
-            // Wilaya
-            Surface(
-                onClick = { showWilayaSheet = true },
-                shape = RoundedCornerShape(14.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-                modifier = Modifier.fillMaxWidth().testTag("edit_wilaya_selector")
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.LocationOn,
-                            contentDescription = null,
-                            tint = OcaGreenPrimary
-                        )
-                        Text(
-                            text = "$selectedWilayaCode - $selectedWilayaName",
-                            style = MaterialTheme.typography.bodyLarge
-                        )
-                    }
-                    Icon(
-                        imageVector = Icons.Default.ArrowDropDown,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            PrimaryButton(
-                text = "حفظ التغييرات",
-                onClick = {
-                    val updated = userProfile.copy(
-                        name = name,
-                        email = email,
-                        phone = phone,
-                        wilayaCode = selectedWilayaCode,
-                        wilayaName = selectedWilayaName
-                    )
-                    onSaveProfile(updated)
-                    showSuccessDialog = true
-                },
-                testTag = "save_profile_btn"
-            )
-        }
-
-        if (showWilayaSheet) {
-            WilayaPickerBottomSheet(
-                selectedWilayaCode = selectedWilayaCode,
-                onWilayaSelected = { wilaya ->
-                    if (wilaya != null) {
-                        selectedWilayaCode = wilaya.code
-                        selectedWilayaName = wilaya.nameAr
-                    }
-                },
-                onDismiss = { showWilayaSheet = false }
-            )
-        }
-
-        InfoDialog(
-            show = showSuccessDialog,
-            title = "تم الحفظ بنجاح",
-            message = "تم تحديث معلومات ملفك الشخصي في OcaVenteDz بنجاح.",
-            onDismiss = {
-                showSuccessDialog = false
-                onBackClick()
-            }
+    Scaffold(topBar = {
+        TopAppBar(
+            title = { Text("تعديل الملف الشخصي", fontWeight = FontWeight.Bold) },
+            navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "رجوع") } }
         )
+    }) { padding ->
+        Column(
+            modifier = Modifier.fillMaxSize().padding(padding).padding(20.dp).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text("عدّل بياناتك الشخصية ومعلومات التواصل.", color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center, fontSize = 13.sp)
+            OutlinedTextField(name, { name = it; error = null }, Modifier.fillMaxWidth(), label = { Text("الاسم الكامل") }, singleLine = true, enabled = !saving)
+            OutlinedTextField(phone, { phone = it; error = null }, Modifier.fillMaxWidth(), label = { Text("رقم الهاتف") }, singleLine = true, enabled = !saving)
+            OutlinedTextField(email, { email = it; error = null }, Modifier.fillMaxWidth(), label = { Text("البريد الإلكتروني") }, singleLine = true, enabled = !saving)
+
+            // Wilaya: Read-only dropdown list of 69 wilayas
+            ExposedDropdownMenuBox(
+                expanded = isWilayaExpanded,
+                onExpandedChange = { if (!saving) isWilayaExpanded = it },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                OutlinedTextField(
+                    value = wilaya,
+                    onValueChange = {},
+                    readOnly = true,
+                    modifier = Modifier.fillMaxWidth().menuAnchor(),
+                    label = { Text("الولاية (اختر من القائمة - 69 ولاية)") },
+                    leadingIcon = { Icon(Icons.Default.LocationCity, contentDescription = null) },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isWilayaExpanded) },
+                    singleLine = true,
+                    enabled = !saving
+                )
+                ExposedDropdownMenu(
+                    expanded = isWilayaExpanded,
+                    onDismissRequest = { isWilayaExpanded = false },
+                    modifier = Modifier.heightIn(max = 280.dp)
+                ) {
+                    AlgeriaWilayas.list.forEach { item ->
+                        DropdownMenuItem(
+                            text = {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("${item.code} - ${item.nameAr}", fontWeight = FontWeight.SemiBold)
+                                    Text(item.nameFr, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            },
+                            onClick = {
+                                wilaya = "${item.code} - ${item.nameAr}"
+                                if (item.communes.isNotEmpty()) {
+                                    commune = item.communes.first()
+                                }
+                                isWilayaExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+
+            // Commune: Read-only dropdown list
+            if (currentCommunes.isNotEmpty()) {
+                ExposedDropdownMenuBox(
+                    expanded = isCommuneExpanded,
+                    onExpandedChange = { if (!saving) isCommuneExpanded = it },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    OutlinedTextField(
+                        value = commune,
+                        onValueChange = {},
+                        readOnly = true,
+                        modifier = Modifier.fillMaxWidth().menuAnchor(),
+                        label = { Text("البلدية (اختر من القائمة)") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isCommuneExpanded) },
+                        singleLine = true,
+                        enabled = !saving
+                    )
+                    ExposedDropdownMenu(
+                        expanded = isCommuneExpanded,
+                        onDismissRequest = { isCommuneExpanded = false },
+                        modifier = Modifier.heightIn(max = 220.dp)
+                    ) {
+                        currentCommunes.forEach { commName ->
+                            DropdownMenuItem(
+                                text = { Text(commName) },
+                                onClick = {
+                                    commune = commName
+                                    isCommuneExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+            } else {
+                OutlinedTextField(commune, { commune = it; error = null }, Modifier.fillMaxWidth(), label = { Text("البلدية") }, singleLine = true, enabled = !saving)
+            }
+
+            OutlinedTextField(bio, { bio = it; error = null }, Modifier.fillMaxWidth(), label = { Text("نبذة عنك") }, minLines = 3, enabled = !saving)
+            error?.let { Text(it, color = MaterialTheme.colorScheme.error, fontSize = 13.sp, textAlign = TextAlign.Center) }
+            Button(
+                onClick = {
+                    saving = true
+                    viewModel.updateCurrentUserProfile(name, phone, email, wilaya, commune, bio,
+                        onSuccess = { saving = false; onSaved() },
+                        onError = { saving = false; error = it })
+                },
+                modifier = Modifier.fillMaxWidth(), enabled = !saving
+            ) {
+                if (saving) CircularProgressIndicator(modifier = Modifier.padding(2.dp), color = MaterialTheme.colorScheme.onPrimary)
+                else { Icon(Icons.Default.Save, null); Text(" حفظ التعديلات") }
+            }
+        }
     }
 }

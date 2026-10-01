@@ -1,3 +1,16 @@
+import java.util.Properties
+val localProperties = Properties().apply {
+  val propertiesFile = rootProject.file("local.properties")
+  if (propertiesFile.exists()) propertiesFile.inputStream().use { load(it) }
+}
+fun localValue(name: String, fallback: String = ""): String {
+  val envVal = System.getenv(name)
+  if (!envVal.isNullOrBlank()) return envVal.replace("\\", "\\\\").replace("\"", "\\\"")
+  val propVal = localProperties.getProperty(name, fallback) ?: fallback
+  return propVal.replace("\\", "\\\\").replace("\"", "\\\"")
+}
+
+
 plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.kotlin.compose)
@@ -5,17 +18,36 @@ plugins {
 }
 
 android {
-  namespace = "com.example.admin"
-  compileSdk { version = release(36) { minorApiLevel = 1 } }
+  namespace = "com.example"
+  compileSdk = 35
 
   defaultConfig {
-    applicationId = "dz.ocavente.admin"
+    applicationId = "OcaVenteDz.Admin"
     minSdk = 24
-    targetSdk = 36
+    targetSdk = 34
     versionCode = 1
     versionName = "1.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    buildConfigField("String", "BACK4APP_SERVER_URL", "\"${localValue("BACK4APP_SERVER_URL", "https://parseapi.back4app.com/")}\"")
+    buildConfigField("String", "BACK4APP_APPLICATION_ID", "\"${localValue("BACK4APP_APPLICATION_ID")}\"")
+    buildConfigField("String", "BACK4APP_CLIENT_KEY", "\"${localValue("BACK4APP_CLIENT_KEY")}\"")
+  }
+
+  signingConfigs {
+    create("release") {
+      val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/admin-upload-key.jks"
+      storeFile = file(keystorePath)
+      storePassword = System.getenv("STORE_PASSWORD")
+      keyAlias = "upload"
+      keyPassword = System.getenv("KEY_PASSWORD")
+    }
+    create("debugConfig") {
+      storeFile = file("${rootDir}/debug.keystore")
+      storePassword = "android"
+      keyAlias = "androiddebugkey"
+      keyPassword = "android"
+    }
   }
 
   buildTypes {
@@ -23,8 +55,9 @@ android {
       isCrunchPngs = false
       isMinifyEnabled = false
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+      signingConfig = signingConfigs.getByName("release")
     }
-    debug { }
+    debug { signingConfig = signingConfigs.getByName("debugConfig") }
   }
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_11
@@ -34,11 +67,22 @@ android {
     compose = true
     buildConfig = true
   }
+  testOptions { unitTests { isIncludeAndroidResources = true } }
+  dependenciesInfo {
+    includeInApk = false
+    includeInBundle = true
+  }
 }
 
 dependencies {
   implementation(platform(libs.androidx.compose.bom))
+  implementation(platform(libs.firebase.bom))
+  // implementation(libs.accompanist.permissions)
   implementation(libs.androidx.activity.compose)
+  implementation(libs.androidx.camera.camera2)
+  implementation(libs.androidx.camera.core)
+  implementation(libs.androidx.camera.lifecycle)
+  implementation(libs.androidx.camera.view)
   implementation(libs.androidx.compose.material.icons.core)
   implementation(libs.androidx.compose.material.icons.extended)
   implementation(libs.androidx.compose.material3)
@@ -46,25 +90,49 @@ dependencies {
   implementation(libs.androidx.compose.ui.graphics)
   implementation(libs.androidx.compose.ui.tooling.preview)
   implementation(libs.androidx.core.ktx)
+  // implementation(libs.androidx.datastore.preferences)
   implementation(libs.androidx.lifecycle.runtime.compose)
   implementation(libs.androidx.lifecycle.runtime.ktx)
   implementation(libs.androidx.lifecycle.viewmodel.compose)
   implementation(libs.androidx.navigation.compose)
+  implementation(libs.androidx.room.ktx)
+  implementation(libs.androidx.room.runtime)
   implementation(libs.coil.compose)
+  implementation(libs.converter.moshi)
+  implementation(libs.firebase.ai)
+  // Uncomment to use Firestore:
+  implementation(libs.firebase.firestore)
+  implementation(libs.firebase.storage)
+  implementation(libs.parse.sdk)
+
+  // Uncomment ALL FOUR of the following dependencies together to use Firebase Auth and Google
+  // Sign-In via Credential Manager:
+  implementation(libs.firebase.auth)
+  implementation(libs.androidx.credentials)
+  implementation(libs.androidx.credentials.play.services)
+  implementation(libs.googleid)
+  implementation(libs.firebase.appcheck.recaptcha)
+  implementation(libs.firebase.appcheck.debug)
   implementation(libs.kotlinx.coroutines.android)
   implementation(libs.kotlinx.coroutines.core)
   implementation(libs.logging.interceptor)
   implementation(libs.moshi.kotlin)
   implementation(libs.okhttp)
+  // implementation(libs.play.services.location)
   implementation(libs.retrofit)
-  implementation(libs.converter.moshi)
-
   testImplementation(libs.androidx.compose.ui.test.junit4)
   testImplementation(libs.androidx.core)
   testImplementation(libs.androidx.junit)
   testImplementation(libs.junit)
   testImplementation(libs.kotlinx.coroutines.test)
   testImplementation(libs.robolectric)
+  androidTestImplementation(platform(libs.androidx.compose.bom))
+  androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+  androidTestImplementation(libs.androidx.espresso.core)
+  androidTestImplementation(libs.androidx.junit)
+  androidTestImplementation(libs.androidx.runner)
+  debugImplementation(libs.androidx.compose.ui.test.manifest)
   debugImplementation(libs.androidx.compose.ui.tooling)
+  "ksp"(libs.androidx.room.compiler)
   "ksp"(libs.moshi.kotlin.codegen)
 }

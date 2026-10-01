@@ -1,112 +1,112 @@
 package com.example.ui.screens.auth
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.HowToReg
 import androidx.compose.material.icons.filled.Login
-import androidx.compose.material.icons.filled.PersonAdd
-import androidx.compose.material3.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.ui.components.PrimaryButton
-import com.example.ui.components.SecondaryButton
-import com.example.ui.components.OcaVenteOfficialLogo
-import com.example.ui.theme.OcaGreenPrimary
-import com.example.ui.theme.OcaNavySecondary
+import com.example.ui.components.OcaVenteDzFullBrandCard
+import com.example.ui.theme.EmeraldPrimary
 
 @Composable
 fun AuthLandingScreen(
-    onNavigateToLogin: () -> Unit,
-    onNavigateToRegister: () -> Unit
+    onRegister: () -> Unit,
+    onLogin: () -> Unit
 ) {
-    Surface(
-        modifier = Modifier.fillMaxSize(),
-        color = MaterialTheme.colorScheme.background
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 28.dp, vertical = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceBetween
-        ) {
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Brand Hero
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                OcaVenteOfficialLogo(
-                    iconSize = 105.dp,
-                    showTagline = true
-                )
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                // Feature Highlights
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    FeatureRow(text = "تغطية شاملة لـ 69 ولاية جزائرية")
-                    FeatureRow(text = "انشر إعلانك بكل بساطة")
-                    FeatureRow(text = "تواصل مباشر وآمن بين البائع والمشتري")
-                }
-            }
-
-            // Action Buttons
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                PrimaryButton(
-                    text = "تسجيل الدخول",
-                    icon = Icons.Default.Login,
-                    onClick = onNavigateToLogin,
-                    testTag = "landing_login_btn"
-                )
-
-                SecondaryButton(
-                    text = "إنشاء حساب جديد",
-                    icon = Icons.Default.PersonAdd,
-                    onClick = onNavigateToRegister,
-                    testTag = "landing_register_btn"
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun FeatureRow(text: String) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Icon(
-            imageVector = Icons.Default.CheckCircle,
-            contentDescription = null,
-            tint = OcaGreenPrimary,
-            modifier = Modifier.size(18.dp)
+        OcaVenteDzFullBrandCard(
+            logoSize = 82.dp
         )
+        Spacer(modifier = Modifier.height(28.dp))
         Text(
-            text = text,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface
+            text = "مرحبًا بك في OcaVenteDz",
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "يرجى تسجيل الدخول أو إنشاء حساب جديد للمتابعة",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 14.sp,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(32.dp))
+        Button(
+            onClick = onLogin,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(54.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Login,
+                contentDescription = null,
+                tint = Color.White
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "تسجيل الدخول",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+        }
+        Spacer(modifier = Modifier.height(14.dp))
+        OutlinedButton(
+            onClick = onRegister,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(54.dp),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.HowToReg,
+                contentDescription = null,
+                tint = EmeraldPrimary
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "إنشاء حساب جديد",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                color = EmeraldPrimary
+            )
+        }
+        Spacer(modifier = Modifier.height(24.dp))
+        Text(
+            text = "سوق إلكتروني موثوق للتجارة الآمنة عبر 69 ولاية",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 12.sp,
+            textAlign = TextAlign.Center
         )
     }
 }

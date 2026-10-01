@@ -1,174 +1,179 @@
 package com.example.ui.screens.profile
 
-import android.content.Intent
-import android.net.Uri
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.example.ui.components.*
-import com.example.ui.model.Listing
-import com.example.ui.theme.OcaGreenPrimary
+import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
+import com.example.ui.components.formatDzd
+import com.example.ui.components.formatTimeAgo
+import com.example.ui.theme.EmeraldPrimary
+import com.example.ui.theme.VerifiedBlue
+import com.example.ui.viewmodel.MarketplaceViewModel
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SellerProfileScreen(
-    sellerName: String,
-    sellerPhone: String,
-    sellerWilaya: String,
-    sellerRating: Float,
-    sellerListings: List<Listing>,
-    favoriteIds: Set<String>,
-    onToggleFavorite: (String) -> Unit,
-    onListingClick: (Listing) -> Unit,
-    onContactChat: () -> Unit,
-    onBackClick: () -> Unit
+    sellerId: String,
+    viewModel: MarketplaceViewModel,
+    onBack: () -> Unit,
+    onAdClick: (String) -> Unit,
+    onOpenChat: (listingId: String, sellerId: String) -> Unit
 ) {
-    val context = LocalContext.current
+    val allUsers by viewModel.allUsers.collectAsState()
+    val allListings by viewModel.publishedListings.collectAsState()
+
+    val seller = allUsers.find { it.id == sellerId }
+    val sellerAds = allListings.filter { it.userId == sellerId }
 
     Scaffold(
         topBar = {
-            OcaSubTopBar(
-                title = "ملف البائع",
-                onBackClick = onBackClick
+            TopAppBar(
+                title = { Text(seller?.name ?: "ملف البائع", fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "رجوع")
+                    }
+                }
             )
-        }
+        },
+        modifier = Modifier.testTag("seller_profile_screen")
     ) { padding ->
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(padding)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             // Seller Header Card
             item {
-                Surface(
-                    shape = RoundedCornerShape(20.dp),
-                    color = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 2.dp,
-                    modifier = Modifier.fillMaxWidth()
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                 ) {
                     Column(
-                        modifier = Modifier.padding(20.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                        modifier = Modifier.padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        UserAvatar(name = sellerName, size = 72.dp)
-
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = EmeraldPrimary.copy(alpha = 0.15f),
+                            modifier = Modifier.size(72.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
                                 Text(
-                                    text = sellerName,
-                                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
-                                )
-                                Icon(
-                                    imageVector = Icons.Default.Verified,
-                                    contentDescription = "موثق",
-                                    tint = OcaGreenPrimary,
-                                    modifier = Modifier.size(20.dp)
+                                    text = (seller?.name?.take(1) ?: "ب"),
+                                    fontSize = 28.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = EmeraldPrimary
                                 )
                             }
-                            Text(
-                                text = "ولاية $sellerWilaya • بائع معتمد على OcaVenteDz",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
                         }
 
-                        // Rating Card
-                        RatingCard(
-                            rating = sellerRating,
-                            totalReviews = 18
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = seller?.name ?: "بائع معتمد",
+                                fontWeight = FontWeight.Black,
+                                fontSize = 17.sp
+                            )
+                            if (seller?.isVerified == true) {
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Icon(Icons.Default.Verified, contentDescription = "موثق", tint = VerifiedBlue, modifier = Modifier.size(18.dp))
+                            }
+                        }
+
+                        Text(
+                            text = "عضو في OcaVenteDz • ${sellerAds.size} إعلانات منشورة",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
 
-                        // Contact Buttons (Chat & Call)
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            Button(
-                                onClick = onContactChat,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(48.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = OcaGreenPrimary),
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Icon(Icons.Default.ChatBubble, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("مراسلة")
-                            }
+                        Spacer(modifier = Modifier.height(14.dp))
 
-                            OutlinedButton(
-                                onClick = {
-                                    val intent = Intent(Intent.ACTION_DIAL).apply {
-                                        data = Uri.parse("tel:$sellerPhone")
-                                    }
-                                    context.startActivity(intent)
-                                },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(48.dp),
-                                shape = RoundedCornerShape(12.dp)
+                        if (sellerAds.isNotEmpty()) {
+                            Button(
+                                onClick = { onOpenChat(sellerAds.first().id, sellerId) },
+                                modifier = Modifier.fillMaxWidth().height(42.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary)
                             ) {
-                                Icon(Icons.Default.Phone, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Icon(Icons.Default.Chat, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("اتصال")
+                                Text("مراسلة البائع")
                             }
                         }
                     }
                 }
             }
 
-            // Seller Listings Header
             item {
-                SectionHeader(
-                    title = "إعلانات البائع (${sellerListings.size})",
-                    actionText = null
+                Text(
+                    text = "إعلانات هذا البائع (${sellerAds.size}):",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp
                 )
             }
 
-            // Grid of Listings
-            if (sellerListings.isEmpty()) {
+            if (sellerAds.isEmpty()) {
                 item {
-                    EmptyState(
-                        title = "لا توجد إعلانات أخرى",
-                        message = "لا توجد إعلانات نشطة لهذا البائع حالياً."
-                    )
+                    Text("لا توجد إعلانات منشورة لهذا البائع حالياً.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             } else {
-                val chunks = sellerListings.chunked(2)
-                items(chunks) { rowItems ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                items(sellerAds, key = { it.id }) { ad ->
+                    val firstImg = ad.imagesJson.split(",").firstOrNull()?.trim() ?: ""
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onAdClick(ad.id) },
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                     ) {
-                        for (item in rowItems) {
-                            Box(modifier = Modifier.weight(1f)) {
-                                ListingCard(
-                                    listing = item,
-                                    isFavorite = favoriteIds.contains(item.id),
-                                    onFavoriteClick = { onToggleFavorite(item.id) },
-                                    onClick = { onListingClick(item) }
-                                )
+                        Row(modifier = Modifier.padding(10.dp)) {
+                            Box(
+                                modifier = Modifier
+                                    .size(76.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                            ) {
+                                if (firstImg.isNotBlank()) {
+                                    AsyncImage(
+                                        model = firstImg,
+                                        contentDescription = ad.title,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                }
                             }
-                        }
-                        if (rowItems.size == 1) {
-                            Spacer(modifier = Modifier.weight(1f))
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(76.dp),
+                                verticalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column {
+                                    Text(ad.title, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1)
+                                    Text(formatDzd(ad.priceDzd), color = EmeraldPrimary, fontWeight = FontWeight.Black, fontSize = 14.sp)
+                                }
+                                Text("${ad.wilayaName} • ${formatTimeAgo(ad.createdAt)}", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
                         }
                     }
                 }

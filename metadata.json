@@ -1,6 +1,6 @@
 {
   "name": "OcaVenteDz",
-  "description": "تطبيق OcaVenteDz لبيع وشراء المستعمل في الجزائر بكل ثقة وسهولة وبأفضل تجربة واجهات",
+  "description": "تطبيق OcaVenteDz للبيع والشراء في الجزائر مع إدارة الرصيد والطلبات عبر Firebase وBack4App",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

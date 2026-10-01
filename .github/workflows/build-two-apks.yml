@@ -1,0 +1,92 @@
+name: Build OcaVente DZ APKs
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build user and admin APKs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools platforms;android-35 platforms;android-34 build-tools;35.0.0
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.3.1'
+
+      - name: Decode debug keystore
+        run: |
+          if [ -f debug.keystore.base64 ]; then
+            base64 -d debug.keystore.base64 > debug.keystore
+          fi
+
+      - name: Build both debug APKs
+        run: gradle :app:assembleDebug :admin:assembleDebug --no-daemon
+        env:
+          BACK4APP_SERVER_URL: ${{ secrets.BACK4APP_SERVER_URL }}
+          BACK4APP_APPLICATION_ID: ${{ secrets.BACK4APP_APPLICATION_ID }}
+          BACK4APP_CLIENT_KEY: ${{ secrets.BACK4APP_CLIENT_KEY }}
+
+      - name: Prepare Clean APKs
+        run: |
+          mkdir -p dist-apks
+          cp app/build/outputs/apk/debug/app-debug.apk dist-apks/OcaVenteDz-User.apk
+          cp admin/build/outputs/apk/debug/admin-debug.apk dist-apks/OcaVenteDz-Admin.apk
+
+      - name: Upload All APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: ocavente-dz-apks
+          path: dist-apks/*.apk
+
+      - name: Upload Admin APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ocavente-dz-admin-apk
+          path: dist-apks/OcaVenteDz-Admin.apk
+
+      - name: Upload User APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ocavente-dz-user-apk
+          path: dist-apks/OcaVenteDz-User.apk
+
+      - name: Publish Direct APK Download Release
+        uses: softprops/action-gh-release@v2
+        if: github.ref == 'refs/heads/main'
+        with:
+          tag_name: v1.0.5
+          name: "OcaVente DZ APKs v1.0.5 (تكامل سحابي ومزامنة Back4App و Firebase)"
+          make_latest: true
+          body: |
+            ### تحميل مباشر لملفات APK بدون الحاجة لفك الضغط:
+            - اضغط مباشرة على ملف **OcaVenteDz-User.apk** أدناه لتنزيله وتثبيته فوراً.
+            - اضغط مباشرة على ملف **OcaVenteDz-Admin.apk** أدناه لتنزيل تطبيق الإدارة وتثبيته فوراً.
+
+            **أبرز التحديثات في v1.0.5:**
+            - تهيئة وتكامل عميل Back4App Parse السحابي مع التطبيق.
+            - استقرار وثبات جلسة تسجيل الدخول حتى طلب الخروج الصريح.
+            - التحقق السحابي المزدوج وإدارة وصولات الدفع والإشراف المركزي.
+          files: |
+            dist-apks/OcaVenteDz-User.apk
+            dist-apks/OcaVenteDz-Admin.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

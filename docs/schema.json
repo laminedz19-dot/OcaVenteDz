@@ -1,0 +1,304 @@
+{
+  "format": "ocavente-dz-parse-schema-v1",
+  "description": "مخطط ترحيل OcaVente DZ من Firestore/Room إلى Back4App Parse",
+  "parseServer": "https://parseapi.back4app.com/",
+  "systemClasses": {
+    "_User": {
+      "preserve": true,
+      "customFields": {
+        "legacyUserId": "String",
+        "phone": "String",
+        "emailAddress": "String",
+        "name": "String",
+        "avatarUrl": "String",
+        "wilaya": "String",
+        "commune": "String",
+        "bio": "String",
+        "sellerRating": "Number",
+        "reviewsCount": "Number",
+        "adsCount": "Number",
+        "isVerified": "Boolean",
+        "verificationRequested": "Boolean",
+        "isBanned": "Boolean",
+        "profileRole": "String"
+      },
+      "indexes": ["legacyUserId", "phone", "emailAddress"]
+    }
+  },
+  "classes": [
+    {
+      "className": "Listing",
+      "source": "Firestore listings / Room ListingEntity",
+      "fields": {
+        "legacyId": "String",
+        "owner": "Pointer<_User>",
+        "legacyUserId": "String",
+        "userName": "String",
+        "userPhone": "String",
+        "isPhoneVisible": "Boolean",
+        "title": "String",
+        "description": "String",
+        "categoryId": "String",
+        "categoryNameAr": "String",
+        "subcategory": "String",
+        "priceDzd": "Number",
+        "isNegotiable": "Boolean",
+        "condition": "String",
+        "wilayaCode": "Number",
+        "wilayaName": "String",
+        "commune": "String",
+        "images": "Array<File>",
+        "imageUrlsLegacy": "String",
+        "videoUrl": "String",
+        "status": "String",
+        "rejectionReason": "String",
+        "packageType": "String",
+        "publishingFeeDzd": "Number",
+        "isPaid": "Boolean",
+        "isFeatured": "Boolean",
+        "isUrgent": "Boolean",
+        "viewsCount": "Number",
+        "expiresAt": "Date"
+      },
+      "builtInFields": ["objectId", "createdAt", "updatedAt"],
+      "indexes": ["legacyId", "owner", "status", "wilayaCode", "categoryId", "createdAt", "status_createdAt"]
+    },
+    {
+      "className": "PaymentOrder",
+      "source": "Firestore payments / Room PaymentOrderEntity",
+      "fields": {
+        "legacyPaymentId": "String",
+        "user": "Pointer<_User>",
+        "legacyUserId": "String",
+        "listing": "Pointer<Listing>",
+        "legacyListingId": "String",
+        "amount": "Number",
+        "currency": "String",
+        "status": "String",
+        "provider": "String",
+        "transactionReference": "String",
+        "completedAt": "Date"
+      },
+      "builtInFields": ["objectId", "createdAt", "updatedAt"],
+      "indexes": ["legacyPaymentId", "user", "listing", "status", "createdAt"]
+    },
+    {
+      "className": "TopUpRequest",
+      "source": "Firestore topUpRequests / Room TopUpRequestEntity",
+      "fields": {
+        "legacyRequestId": "String",
+        "user": "Pointer<_User>",
+        "legacyUserId": "String",
+        "userNameSnapshot": "String",
+        "userPhoneSnapshot": "String",
+        "amountDzd": "Number",
+        "provider": "String",
+        "reference": "String",
+        "receiptFile": "File",
+        "receiptImageUrlLegacy": "String",
+        "status": "String",
+        "adminNote": "String",
+        "reviewedBy": "Pointer<_User>",
+        "reviewedAt": "Date"
+      },
+      "builtInFields": ["objectId", "createdAt", "updatedAt"],
+      "indexes": ["legacyRequestId", "user", "status", "createdAt"]
+    },
+    {
+      "className": "Wallet",
+      "source": "Firestore wallets / Room WalletEntity",
+      "fields": {
+        "user": "Pointer<_User>",
+        "legacyUserId": "String",
+        "balanceDzd": "Number",
+        "pendingBalanceDzd": "Number",
+        "currency": "String",
+        "isActive": "Boolean"
+      },
+      "indexes": ["user", "legacyUserId"]
+    },
+    {
+      "className": "WalletTransaction",
+      "source": "Room WalletTransactionEntity; no Firestore collection found",
+      "fields": {
+        "legacyId": "String",
+        "user": "Pointer<_User>",
+        "legacyUserId": "String",
+        "type": "String",
+        "amount": "Number",
+        "description": "String",
+        "referenceId": "String",
+        "timestamp": "Date"
+      },
+      "indexes": ["legacyId", "user", "timestamp"]
+    },
+    {
+      "className": "ChatMessage",
+      "source": "Room ChatMessageEntity / Back4App client",
+      "fields": {
+        "legacyId": "String",
+        "listing": "Pointer<Listing>",
+        "legacyListingId": "String",
+        "sender": "Pointer<_User>",
+        "receiver": "Pointer<_User>",
+        "legacySenderId": "String",
+        "legacyReceiverId": "String",
+        "content": "String",
+        "sentAt": "Date",
+        "isOffer": "Boolean",
+        "offerAmountDzd": "Number",
+        "offerStatus": "String"
+      },
+      "builtInFields": ["objectId", "createdAt", "updatedAt"],
+      "indexes": ["legacyId", "listing", "sender", "receiver", "sentAt", "listing_sentAt"]
+    },
+    {
+      "className": "Review",
+      "source": "Room ReviewEntity",
+      "fields": {
+        "legacyId": "String",
+        "seller": "Pointer<_User>",
+        "buyer": "Pointer<_User>",
+        "legacySellerId": "String",
+        "legacyBuyerId": "String",
+        "buyerNameSnapshot": "String",
+        "listing": "Pointer<Listing>",
+        "legacyListingId": "String",
+        "rating": "Number",
+        "comment": "String",
+        "reviewedAt": "Date"
+      },
+      "indexes": ["legacyId", "seller", "listing", "seller_reviewedAt"]
+    },
+    {
+      "className": "Report",
+      "source": "Room ReportEntity",
+      "fields": {
+        "legacyId": "String",
+        "reporter": "Pointer<_User>",
+        "reportedUser": "Pointer<_User>",
+        "reportedListing": "Pointer<Listing>",
+        "legacyReporterId": "String",
+        "legacyReportedUserId": "String",
+        "legacyReportedListingId": "String",
+        "reason": "String",
+        "comment": "String",
+        "status": "String",
+        "resolvedBy": "Pointer<_User>",
+        "resolvedAt": "Date"
+      },
+      "indexes": ["legacyId", "status", "reportedUser", "reportedListing", "createdAt"]
+    },
+    {
+      "className": "Favorite",
+      "source": "Room FavoriteEntity",
+      "fields": {
+        "legacyId": "String",
+        "user": "Pointer<_User>",
+        "listing": "Pointer<Listing>",
+        "legacyUserId": "String",
+        "legacyListingId": "String",
+        "notifyPriceDrop": "Boolean",
+        "notifySimilar": "Boolean"
+      },
+      "indexes": ["legacyId", "user", "listing", "user_listing"]
+    },
+    {
+      "className": "PlatformSettings",
+      "source": "Firestore settings/global / Room PlatformSettingsEntity",
+      "fields": {
+        "legacyId": "String",
+        "standardAdFeeDzd": "Number",
+        "featuredAdFeeDzd": "Number",
+        "urgentAdFeeDzd": "Number",
+        "adDurationDays": "Number",
+        "autoPublishAfterPayment": "Boolean",
+        "isFreePromoActive": "Boolean",
+        "officialRip": "String",
+        "officialKey": "String",
+        "officialAccountHolder": "String",
+        "officialProviderName": "String",
+        "officialInstructions": "String"
+      },
+      "indexes": ["legacyId"]
+    },
+    {
+      "className": "Order",
+      "source": "Firestore orders / Room OrderEntity",
+      "fields": {
+        "legacyId": "String",
+        "orderNumber": "String",
+        "listing": "Pointer<Listing>",
+        "legacyListingId": "String",
+        "listingTitle": "String",
+        "listingImageUrl": "String",
+        "seller": "Pointer<_User>",
+        "buyer": "Pointer<_User>",
+        "legacySellerId": "String",
+        "legacyBuyerId": "String",
+        "sellerNameSnapshot": "String",
+        "sellerPhoneSnapshot": "String",
+        "buyerNameSnapshot": "String",
+        "buyerPhoneSnapshot": "String",
+        "buyerWilaya": "String",
+        "buyerCommune": "String",
+        "buyerAddress": "String",
+        "quantity": "Number",
+        "unitPriceDzd": "Number",
+        "deliveryFeeDzd": "Number",
+        "totalAmountDzd": "Number",
+        "paymentMethod": "String",
+        "isPaid": "Boolean",
+        "status": "String",
+        "trackingNumber": "String",
+        "buyerNotes": "String",
+        "statusNote": "String",
+        "updatedAtLegacy": "Date",
+        "deliveredAt": "Date",
+        "cancelledAt": "Date"
+      },
+      "builtInFields": ["objectId", "createdAt", "updatedAt"],
+      "indexes": ["legacyId", "orderNumber", "buyer", "seller", "listing", "status", "createdAt"]
+    },
+    {
+      "className": "AppNotification",
+      "source": "Future replacement for Firebase FCM notifications",
+      "fields": {
+        "recipient": "Pointer<_User>",
+        "type": "String",
+        "title": "String",
+        "body": "String",
+        "data": "Object",
+        "isRead": "Boolean",
+        "sentAt": "Date"
+      },
+      "indexes": ["recipient", "isRead", "createdAt"]
+    }
+  ],
+  "preservedAdminClasses": [
+    {"className": "B4aSetting", "action": "preserve unchanged"},
+    {"className": "B4aMenuItem", "action": "preserve unchanged"},
+    {"className": "B4aCustomField", "action": "preserve unchanged"}
+  ],
+  "firestoreToParse": {
+    "users": "_User",
+    "listings": "Listing",
+    "payments": "PaymentOrder",
+    "topUpRequests": "TopUpRequest",
+    "wallets": "Wallet",
+    "settings/global": "PlatformSettings",
+    "orders": "Order",
+    "Room.chat_messages": "ChatMessage",
+    "Room.reviews": "Review",
+    "Room.reports": "Report",
+    "Room.favorites": "Favorite",
+    "Room.wallet_transactions": "WalletTransaction"
+  },
+  "subcollections": [],
+  "migrationRules": {
+    "identity": "احفظ المعرف القديم في legacyId ثم ابنِ Pointers بعد إنشاء كل السجلات",
+    "dates": "حوّل milliseconds أو Firestore Timestamp إلى Parse Date",
+    "images": "حوّل روابط الصور إلى ParseFile في المرحلة السادسة",
+    "secrets": "لا تضع المفاتيح في هذا الملف أو في Git"
+  }
+}
