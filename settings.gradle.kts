@@ -22,7 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "ocaventeDz"
+rootProject.name = "My Application"
 
 include(":app")
-include(":admin")

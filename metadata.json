@@ -1,6 +1,6 @@
 {
-  "name": "ocaventeDz",
-  "description": "Algerian Classifieds & Marketplace Platform (User & Admin Apps, Node.js + PostgreSQL Backend, Zero Firebase)",
+  "name": "OcaVenteDz",
+  "description": "تطبيق OcaVenteDz لبيع وشراء المستعمل في الجزائر بكل ثقة وسهولة وبأفضل تجربة واجهات",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

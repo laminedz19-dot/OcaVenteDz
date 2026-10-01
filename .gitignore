@@ -16,3 +16,10 @@
 local.properties
 .env
 debug.keystore
+debug.keystore.base64
+.build-outputs/
+build/
+app/build/
+*.hprof
+*.pyc
+__pycache__/

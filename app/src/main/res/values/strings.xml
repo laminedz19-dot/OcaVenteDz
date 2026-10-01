@@ -1,4 +1,9 @@
 <resources>
-    <string name="app_name">ocaventeDz</string>
-    <string name="admin_app_name">ocaventeDz Admin</string>
+    <string name="app_name">OcaVenteDz</string>
+    <string name="app_tagline">بيع وشراء المستعمل بكل ثقة</string>
+    <string name="search_placeholder">ابحث عن سيارات، هواتف، عقارات، ملابس…</string>
+    <string name="all_categories">جميع التصنيفات</string>
+    <string name="latest_listings">أحدث الإعلانات</string>
+    <string name="featured_listings">إعلانات مميزة</string>
+    <string name="currency">دج</string>
 </resources>
