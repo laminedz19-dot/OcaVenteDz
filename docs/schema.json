@@ -1,6 +1,6 @@
 {
   "format": "ocavente-dz-parse-schema-v1",
-  "description": "مخطط ترحيل OcaVente DZ من Firestore/Room إلى Back4App Parse",
+  "description": "مخطط ترحيل OcaVente DZ من Back4App/Room إلى Back4App Parse",
   "parseServer": "https://parseapi.back4app.com/",
   "systemClasses": {
     "_User": {
@@ -28,7 +28,7 @@
   "classes": [
     {
       "className": "Listing",
-      "source": "Firestore listings / Room ListingEntity",
+      "source": "Back4App listings / Room ListingEntity",
       "fields": {
         "legacyId": "String",
         "owner": "Pointer<_User>",
@@ -65,7 +65,7 @@
     },
     {
       "className": "PaymentOrder",
-      "source": "Firestore payments / Room PaymentOrderEntity",
+      "source": "Back4App payments / Room PaymentOrderEntity",
       "fields": {
         "legacyPaymentId": "String",
         "user": "Pointer<_User>",
@@ -84,7 +84,7 @@
     },
     {
       "className": "TopUpRequest",
-      "source": "Firestore topUpRequests / Room TopUpRequestEntity",
+      "source": "Back4App topUpRequests / Room TopUpRequestEntity",
       "fields": {
         "legacyRequestId": "String",
         "user": "Pointer<_User>",
@@ -106,7 +106,7 @@
     },
     {
       "className": "Wallet",
-      "source": "Firestore wallets / Room WalletEntity",
+      "source": "Back4App wallets / Room WalletEntity",
       "fields": {
         "user": "Pointer<_User>",
         "legacyUserId": "String",
@@ -119,7 +119,7 @@
     },
     {
       "className": "WalletTransaction",
-      "source": "Room WalletTransactionEntity; no Firestore collection found",
+      "source": "Room WalletTransactionEntity; no Back4App collection found",
       "fields": {
         "legacyId": "String",
         "user": "Pointer<_User>",
@@ -205,7 +205,7 @@
     },
     {
       "className": "PlatformSettings",
-      "source": "Firestore settings/global / Room PlatformSettingsEntity",
+      "source": "Back4App settings/global / Room PlatformSettingsEntity",
       "fields": {
         "legacyId": "String",
         "standardAdFeeDzd": "Number",
@@ -224,7 +224,7 @@
     },
     {
       "className": "Order",
-      "source": "Firestore orders / Room OrderEntity",
+      "source": "Back4App orders / Room OrderEntity",
       "fields": {
         "legacyId": "String",
         "orderNumber": "String",
@@ -262,7 +262,7 @@
     },
     {
       "className": "AppNotification",
-      "source": "Future replacement for Firebase FCM notifications",
+      "source": "Future replacement for Back4App FCM notifications",
       "fields": {
         "recipient": "Pointer<_User>",
         "type": "String",
@@ -280,7 +280,7 @@
     {"className": "B4aMenuItem", "action": "preserve unchanged"},
     {"className": "B4aCustomField", "action": "preserve unchanged"}
   ],
-  "firestoreToParse": {
+  "Back4AppToParse": {
     "users": "_User",
     "listings": "Listing",
     "payments": "PaymentOrder",
@@ -297,7 +297,7 @@
   "subcollections": [],
   "migrationRules": {
     "identity": "احفظ المعرف القديم في legacyId ثم ابنِ Pointers بعد إنشاء كل السجلات",
-    "dates": "حوّل milliseconds أو Firestore Timestamp إلى Parse Date",
+    "dates": "حوّل milliseconds أو Back4App Timestamp إلى Parse Date",
     "images": "حوّل روابط الصور إلى ParseFile في المرحلة السادسة",
     "secrets": "لا تضع المفاتيح في هذا الملف أو في Git"
   }

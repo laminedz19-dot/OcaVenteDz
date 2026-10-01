@@ -311,7 +311,7 @@ fun AdminDashboardScreen(
             title = { Text("رمز دخول الإشراف", fontWeight = FontWeight.Bold) },
             text = {
                 Text(
-                    "يتم إدارة مصادقة المشرف وأمان النظام حالياً بصورة مشفرة ومؤمنة عبر Firebase Authentication للبريد المعتمد (laminedz.19@gmail.com).",
+                    "يتم إدارة مصادقة المشرف وأمان النظام حالياً بصورة مشفرة ومؤمنة عبر الخدمة السحابية للبريد المعتمد (laminedz.19@gmail.com).",
                     fontSize = 13.sp
                 )
             },
@@ -457,7 +457,7 @@ fun AdminDashboardScreen(
             contentPadding = PaddingValues(bottom = 90.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // TAB 0: TOP-UP REQUESTS & RECEIPTS (DIRECT FIRESTORE STREAM)
+            // TAB 0: TOP-UP REQUESTS & RECEIPTS (DIRECT الخدمة السحابية STREAM)
             if (selectedTab == 0) {
                 when (val state = topUpListUiState) {
                     is MarketplaceViewModel.TopUpListUiState.Loading -> {
@@ -478,7 +478,7 @@ fun AdminDashboardScreen(
                                     )
                                     Spacer(modifier = Modifier.width(12.dp))
                                     Text(
-                                        "جاري مزامنة واسترجاع طلبات الشحن من Firebase Firestore...",
+                                        "جاري مزامنة واسترجاع طلبات الشحن من الخدمة السحابية...",
                                         fontSize = 12.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -498,7 +498,7 @@ fun AdminDashboardScreen(
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Icon(Icons.Default.Warning, contentDescription = null, tint = UrgentRed, modifier = Modifier.size(20.dp))
                                         Spacer(modifier = Modifier.width(8.dp))
-                                        Text("خطأ في الاتصال أو الصلاحيات بـ Firestore", fontWeight = FontWeight.Bold, color = UrgentRed, fontSize = 13.sp)
+                                        Text("خطأ في الاتصال أو الصلاحيات بـ الخدمة السحابية", fontWeight = FontWeight.Bold, color = UrgentRed, fontSize = 13.sp)
                                     }
                                     Spacer(modifier = Modifier.height(6.dp))
                                     Text(
@@ -509,7 +509,7 @@ fun AdminDashboardScreen(
                                     )
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text(
-                                        text = "ملاحظة: إذا ظهر خطأ PERMISSION_DENIED، تأكد من تسجيل دخول المشرف بحساب يحمل صلاحية admin == true في Firebase Auth.",
+                                        text = "ملاحظة: إذا ظهر خطأ PERMISSION_DENIED، تأكد من تسجيل دخول المشرف بحساب يحمل صلاحية admin == true في الخدمة السحابية.",
                                         fontSize = 10.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -566,7 +566,7 @@ fun AdminDashboardScreen(
                                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                                 ) {
                                     Text(
-                                        text = if (selectedTopUpFilter == "PENDING") "لا توجد طلبات شحن معلقة حالياً في Firestore ✓" else "لا توجد طلبات في هذا القسم.",
+                                        text = if (selectedTopUpFilter == "PENDING") "لا توجد طلبات شحن معلقة حالياً في الخدمة السحابية ✓" else "لا توجد طلبات في هذا القسم.",
                                         modifier = Modifier.padding(16.dp),
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )

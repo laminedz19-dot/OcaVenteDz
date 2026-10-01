@@ -150,7 +150,7 @@ fun ForgotPasswordScreen(
                 Text("العودة إلى تسجيل الدخول")
             }
             Text(
-                text = "المصادقة السحابية غير مفعّلة حاليًا. بعد ربط Firebase Authentication سيتم إرسال رابط استعادة فعلي إلى البريد.",
+                text = "المصادقة السحابية غير مفعّلة حاليًا. بعد ربط الخدمة السحابية سيتم إرسال رابط استعادة فعلي إلى البريد.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 11.sp,
                 textAlign = TextAlign.Center,

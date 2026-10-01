@@ -5,7 +5,6 @@ import com.parse.ParseRole
 import com.parse.ParseUser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
 
 data class AuthUser(
     val uid: String,

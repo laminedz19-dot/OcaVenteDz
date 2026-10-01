@@ -90,7 +90,7 @@ class AdminActivity : ComponentActivity() {
 
                     // Check if current user already has valid admin claims on startup
                     LaunchedEffect(Unit) {
-                        val isCurrentAdmin = viewModel.repository.authService.checkIsCurrentAdmin()
+                        val isCurrentAdmin = viewModel.authenticateAdmin()
                         if (isCurrentAdmin) {
                             isAuthenticated = true
                             viewModel.activateAdminSession()
@@ -144,9 +144,9 @@ class AdminActivity : ComponentActivity() {
 }
 
 /**
- * Production-ready Firebase Authentication gate for Platform Administrators.
- * Authenticates via Email + Password and verifies custom claim "admin: true"
- * after forcing token refresh. No local PIN or hardcoded credentials.
+ * بوابة دخول المشرف عبر المصادقة المحلية/Back4App.
+ * Authenticates via the configured application account
+ * using the configured application authentication. No local PIN or hardcoded credentials.
  */
 @Composable
 fun AdminLoginGate(
@@ -194,7 +194,7 @@ fun AdminLoginGate(
         Spacer(modifier = Modifier.height(6.dp))
 
         Text(
-            text = "بوابة الإدارة المركزية وحماية شحن الرصيد\nالمصادقة السحابية الصارمة عبر Firebase Auth",
+            text = "بوابة الإدارة المركزية وحماية شحن الرصيد\nالمصادقة السحابية الصارمة عبر مصادقة التطبيق",
             fontSize = 13.sp,
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -337,7 +337,7 @@ fun AdminLoginGate(
             )
             Spacer(modifier = Modifier.width(6.dp))
             Text(
-                text = "محمي بواسطة Firebase Auth Claims (admin: true) • لا توجد أسرار محلية",
+                text = "محمي بواسطة مصادقة التطبيق Claims (admin: true) • لا توجد أسرار محلية",
                 fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

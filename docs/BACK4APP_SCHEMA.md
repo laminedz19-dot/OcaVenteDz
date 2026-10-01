@@ -1,22 +1,22 @@
-# مخطط ترحيل OcaVente DZ من Firestore إلى Back4App
+# مخطط ترحيل OcaVente DZ من Back4App إلى Back4App
 
 ## نطاق المرحلة الأولى
 
 هذا المستند هو **مخطط الترحيل** وليس تنفيذ الترحيل نفسه. تمت قراءة:
 
-- `FirestoreService.kt` و`FirestoreModels.kt`.
+- `Back4AppService.kt` و`Back4AppModels.kt`.
 - كيانات Room وواجهاتها DAO.
 - `MarketplaceRepository` وعميل Back4App REST الحالي.
-- `firestore.rules` و`storage.rules`.
+- `Back4App.rules` و`storage.rules`.
 - جداول الإدارة المحفوظة مسبقاً في Back4App.
 
 ملف المخطط الآلي المقابل هو [`docs/schema.json`](schema.json).
 
 ## ملاحظات أساسية
 
-1. مجموعات Firestore الحالية هي: `users`, `listings`, `payments`, `topUpRequests`, `wallets`, `settings`, و`orders`.
-2. لا توجد مجموعات فرعية Firestore مستخدمة في الكود الحالي؛ كل البيانات على مستوى مجموعات مستقلة.
-3. توجد كيانات Room محلية لا تملك مجموعة Firestore صريحة حالياً: المحادثات، التقييمات، البلاغات، المفضلة، معاملات المحفظة. صُممت لها جداول Parse مستقلة حتى لا تضيع عند إزالة Room كمصدر سحابي.
+1. مجموعات Back4App الحالية هي: `users`, `listings`, `payments`, `topUpRequests`, `wallets`, `settings`, و`orders`.
+2. لا توجد مجموعات فرعية Back4App مستخدمة في الكود الحالي؛ كل البيانات على مستوى مجموعات مستقلة.
+3. توجد كيانات Room محلية لا تملك مجموعة Back4App صريحة حالياً: المحادثات، التقييمات، البلاغات، المفضلة، معاملات المحفظة. صُممت لها جداول Parse مستقلة حتى لا تضيع عند إزالة Room كمصدر سحابي.
 4. `Room` يبقى كاشاً محلياً. كل `applicationId` يملك قاعدة محلية منفصلة.
 5. سيتم تحويل هوية المستخدم إلى Parse `_User` في مراحل المصادقة والبيانات. عميل Back4App REST الحالي يستخدم `AppUser` بشكل انتقالي؛ يجب عدم إنشاء `AppUser` جديد في الترحيل النهائي.
 6. الجداول `B4aSetting`, `B4aMenuItem`, و`B4aCustomField` محفوظة كما هي ولا تدخل في عملية الحذف أو إعادة التسمية.
@@ -47,14 +47,14 @@ Parse ينشئ `objectId` خاصاً به. للحفاظ على التوافق م
 - يبقى المعرف القديم قابلاً للبحث أثناء الترحيل فقط.
 - بعد إنشاء جميع السجلات، يبني سكربت النقل الـ Pointers من جدول المعرفات القديمة إلى `objectId` الجديد.
 - لا يتم استخدام رقم الهاتف أو الاسم كمفتاح ربط.
-- تواريخ Firestore Timestamp وmilliseconds تتحول إلى Parse Date.
+- تواريخ Back4App Timestamp وmilliseconds تتحول إلى Parse Date.
 - روابط الصور القديمة تبقى مؤقتاً في حقول `*Legacy` حتى تنجح عملية نقلها إلى ParseFile.
 
 ## مطابقة الحقول الرئيسية
 
 ### users إلى `_User`
 
-| Firestore/Room | Parse |
+| Back4App/Room | Parse |
 |---|---|
 | `id` | `legacyUserId` |
 | `phone` | `phone` |
@@ -69,7 +69,7 @@ Parse ينشئ `objectId` خاصاً به. للحفاظ على التوافق م
 
 ### listings إلى `Listing`
 
-| Firestore/Room | Parse |
+| Back4App/Room | Parse |
 |---|---|
 | `id` | `legacyId` |
 | `userId` | `owner` Pointer و`legacyUserId` أثناء الترحيل |
@@ -99,14 +99,14 @@ Parse ينشئ `objectId` خاصاً به. للحفاظ على التوافق م
 
 ## ما لم يمكن مطابقته حرفياً
 
-- Firestore Rules وCustom Claims ليست كياناً قابلاً للنسخ إلى Parse؛ ستتحول إلى CLP وACL وParse Role وCloud Code في المرحلة الثانية.
-- Firestore Storage Rules لا تنتقل إلى ParseFile تلقائياً؛ ستعاد صياغتها في beforeSave/afterDelete وCloud Code في المرحلة السادسة.
-- Snapshot listeners الخاصة بالرسائل لا تعادل Firestore حرفياً؛ سيستخدم Parse Live Query للمحادثات فقط، بينما بقية البيانات باستعلامات عادية مع Cache Room.
+- Back4App Rules وCustom Claims ليست كياناً قابلاً للنسخ إلى Parse؛ ستتحول إلى CLP وACL وParse Role وCloud Code في المرحلة الثانية.
+- Back4App Storage Rules لا تنتقل إلى ParseFile تلقائياً؛ ستعاد صياغتها في beforeSave/afterDelete وCloud Code في المرحلة السادسة.
+- Snapshot listeners الخاصة بالرسائل لا تعادل Back4App حرفياً؛ سيستخدم Parse Live Query للمحادثات فقط، بينما بقية البيانات باستعلامات عادية مع Cache Room.
 - `B4aSetting`, `B4aMenuItem`, و`B4aCustomField` جداول إدارة موجودة مسبقاً، ولذلك لا يغيرها هذا المخطط.
 
 ## الحالة
 
-- [x] استخراج مجموعات Firestore.
+- [x] استخراج مجموعات Back4App.
 - [x] استخراج كيانات Room ذات الصلة.
 - [x] تحديد العلاقات والـ Pointers.
 - [x] تحديد الفهارس المقترحة.

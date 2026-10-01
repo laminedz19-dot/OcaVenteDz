@@ -4,7 +4,6 @@ import android.util.Log
 import com.parse.ParseUser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
 
 /** بيانات جلسة المصادقة التي تحتاجها طبقات التطبيق دون ربطها بمزوّد محدد. */
 data class AuthUser(

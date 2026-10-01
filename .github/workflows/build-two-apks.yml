@@ -74,7 +74,7 @@ jobs:
         if: github.ref == 'refs/heads/main'
         with:
           tag_name: v1.0.5
-          name: "OcaVente DZ APKs v1.0.5 (تكامل سحابي ومزامنة Back4App و Firebase)"
+          name: "OcaVente DZ APKs v1.0.5 (تكامل سحابي ومزامنة Back4App و Back4App)"
           make_latest: true
           body: |
             ### تحميل مباشر لملفات APK بدون الحاجة لفك الضغط:

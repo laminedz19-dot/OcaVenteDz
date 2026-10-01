@@ -16,11 +16,6 @@ import com.example.data.local.WalletEntity
 import com.example.data.local.WalletTransactionEntity
 import com.example.data.local.TopUpRequestEntity
 import com.example.data.remote.auth.AuthRepository
-import com.example.data.remote.firestore.FirestoreOrder
-import com.example.data.remote.firestore.FirestorePayment
-import com.example.data.remote.firestore.FirestoreService
-import com.example.data.remote.firestore.FirestoreTopUpRequest
-import com.example.data.remote.storage.FirebaseStorageService
 import com.example.data.remote.back4app.Back4AppClient
 import androidx.room.withTransaction
 import kotlinx.coroutines.flow.Flow
@@ -30,9 +25,7 @@ import java.util.UUID
 
 class MarketplaceRepository(
     private val db: AppDatabase,
-    val firestoreService: FirestoreService = FirestoreService(),
     val authService: AuthRepository = AuthRepository(),
-    val storageService: FirebaseStorageService = FirebaseStorageService(),
     val back4AppClient: Back4AppClient = Back4AppClient()
 ) {
 
@@ -43,38 +36,14 @@ class MarketplaceRepository(
     fun getListingById(id: String): Flow<ListingEntity?> = db.listingDao().getListingById(id)
     suspend fun getListingDirect(id: String): ListingEntity? = db.listingDao().getListingByIdDirect(id)
 
-    suspend fun syncListingsFromFirestore() {
-        // 1. Sync from Back4App
-        try {
-            val b4aResult = back4AppClient.getListings()
-            if (b4aResult.isSuccess) {
-                val remoteListings = b4aResult.getOrNull().orEmpty()
-                if (remoteListings.isNotEmpty()) {
-                    db.listingDao().insertListings(remoteListings)
-                }
-            }
-        } catch (_: Exception) {}
-
-        // 2. Sync from Firestore
-        try {
-            val result = firestoreService.getAllListingsForAdmin()
-            if (result.isSuccess) {
-                val remoteListings = result.getOrNull().orEmpty()
-                if (remoteListings.isNotEmpty()) {
-                    val entities = remoteListings.map { it.toListingEntity() }
-                    db.listingDao().insertListings(entities)
-                }
-            }
-        } catch (_: Exception) {}
+    suspend fun syncListingsFromCloud() {
+        try { back4AppClient.getListings().getOrNull().orEmpty().let { if (it.isNotEmpty()) db.listingDao().insertListings(it) } } catch (_: Exception) {}
     }
 
     suspend fun saveListing(listing: ListingEntity) {
         db.listingDao().insertListing(listing)
         try {
             back4AppClient.saveListing(listing)
-        } catch (_: Exception) {}
-        try {
-            firestoreService.saveListing(listing)
         } catch (_: Exception) {}
     }
 
@@ -83,22 +52,11 @@ class MarketplaceRepository(
         try {
             back4AppClient.updateListingStatus(id, status, rejectionReason)
         } catch (_: Exception) {}
-        try {
-            firestoreService.updateListingStatus(id, status, rejectionReason)
-        } catch (_: Exception) {}
     }
 
     suspend fun deleteListing(id: String) {
-        val listing = db.listingDao().getListingByIdDirect(id)
         db.listingDao().deleteListing(id)
-        try {
-            firestoreService.deleteListing(id)
-        } catch (_: Exception) {}
-        if (listing != null) {
-            try {
-                storageService.deleteAllListingImages(listing.userId, listing.id)
-            } catch (_: Exception) {}
-        }
+        try { back4AppClient.updateListingStatus(id, "DELETED") } catch (_: Exception) {}
     }
 
     suspend fun markListingAsSold(listingId: String, userId: String): Boolean =
@@ -190,55 +148,20 @@ class MarketplaceRepository(
         db.topUpRequestDao().getAllRequests()
 
     /**
-     * Primary Source of Truth: Listens directly to all top-up requests in Firestore.
+     * Primary Source of Truth: Listens directly to all top-up requests in الخدمة السحابية.
      * Caches requests in local Room and emits Result.failure on snapshot errors so the UI
      * can display Error state instead of falsely displaying Empty.
      */
     /**
-     * Unified TopUp Stream: Fetches from Back4App cloud database, Firestore, and local Room cache.
+     * Unified TopUp Stream: Fetches from Back4App cloud database, الخدمة السحابية, and local Room cache.
      * Guarantees Admin sees all requests immediately regardless of backend connectivity.
      */
-    fun getAllTopUpRequestsFromFirestore(): Flow<Result<List<TopUpRequestEntity>>> = kotlinx.coroutines.flow.flow {
-        // 1. Immediately emit local Room cache
-        val localList = try {
-            db.topUpRequestDao().getAllRequestsDirect()
-        } catch (_: Exception) {
-            emptyList()
-        }
-        if (localList.isNotEmpty()) {
-            emit(Result.success(localList))
-        }
-
-        // 2. Fetch from Back4App cloud database
+    fun getAllTopUpRequestsFromCloud(): Flow<Result<List<TopUpRequestEntity>>> = kotlinx.coroutines.flow.flow {
+        emit(Result.success(db.topUpRequestDao().getAllRequestsDirect()))
         try {
-            val back4AppRes = back4AppClient.getTopUpRequests()
-            if (back4AppRes.isSuccess) {
-                val b4aList = back4AppRes.getOrNull().orEmpty()
-                for (req in b4aList) {
-                    db.topUpRequestDao().insertRequest(req)
-                }
-                emit(Result.success(db.topUpRequestDao().getAllRequestsDirect()))
-            }
-        } catch (e: Exception) {
-            android.util.Log.w("MarketplaceRepository", "Back4App fetch warning: ${e.message}")
-        }
-
-        // 3. Listen to Firestore stream as well
-        try {
-            firestoreService.getAllTopUpRequestsFlow().collect { fsResult ->
-                if (fsResult.isSuccess) {
-                    val firestoreList = fsResult.getOrNull().orEmpty()
-                    for (item in firestoreList) {
-                        db.topUpRequestDao().insertRequest(item.toTopUpRequestEntity())
-                    }
-                }
-                val combined = db.topUpRequestDao().getAllRequestsDirect()
-                emit(Result.success(combined))
-            }
-        } catch (e: Exception) {
-            val fallback = db.topUpRequestDao().getAllRequestsDirect()
-            emit(Result.success(fallback))
-        }
+            back4AppClient.getTopUpRequests().getOrNull().orEmpty().forEach { db.topUpRequestDao().insertRequest(it) }
+            emit(Result.success(db.topUpRequestDao().getAllRequestsDirect()))
+        } catch (_: Exception) {}
     }
 
     suspend fun submitTopUpRequest(
@@ -253,7 +176,7 @@ class MarketplaceRepository(
     }
 
     /**
-     * Approves top-up request: updates Back4App, Firestore, and Room cache.
+     * Approves top-up request: updates Back4App, الخدمة السحابية, and Room cache.
      * Also credits the user's wallet in Back4App and Room!
      */
     suspend fun approveTopUpRequest(requestId: String, adminNote: String = "تم التحقق من الوصل بنجاح"): Result<String> {
@@ -265,13 +188,6 @@ class MarketplaceRepository(
             back4AppClient.updateTopUpStatus(requestId, "APPROVED", note)
         } catch (e: Exception) {
             android.util.Log.w("MarketplaceRepository", "Back4App approve warning: ${e.message}")
-        }
-
-        // 2. Update Firestore
-        try {
-            firestoreService.updateTopUpStatus(requestId, "APPROVED", note)
-        } catch (e: Exception) {
-            android.util.Log.w("MarketplaceRepository", "Firestore approve warning: ${e.message}")
         }
 
         // 3. Update local Room cache
@@ -299,7 +215,7 @@ class MarketplaceRepository(
     }
 
     /**
-     * Rejects top-up request: updates Back4App, Firestore, and Room cache.
+     * Rejects top-up request: updates Back4App, الخدمة السحابية, and Room cache.
      */
     suspend fun rejectTopUpRequest(requestId: String, reason: String): Result<String> {
         val note = reason.ifBlank { "الوصل غير مطابق أو غير واضح" }
@@ -310,13 +226,6 @@ class MarketplaceRepository(
             back4AppClient.updateTopUpStatus(requestId, "REJECTED", note)
         } catch (e: Exception) {
             android.util.Log.w("MarketplaceRepository", "Back4App reject warning: ${e.message}")
-        }
-
-        // 2. Update Firestore
-        try {
-            firestoreService.updateTopUpStatus(requestId, "REJECTED", note)
-        } catch (e: Exception) {
-            android.util.Log.w("MarketplaceRepository", "Firestore reject warning: ${e.message}")
         }
 
         // 3. Update local Room cache
@@ -344,11 +253,7 @@ class MarketplaceRepository(
         try {
             back4AppClient.saveUser(user)
         } catch (_: Exception) {}
-        try {
-            kotlinx.coroutines.withTimeoutOrNull(5_000L) {
-                firestoreService.saveUser(user)
-            }
-        } catch (_: Exception) {}
+
     }
 
     suspend fun createEmptyWallet(userId: String) {
@@ -364,17 +269,11 @@ class MarketplaceRepository(
         try {
             back4AppClient.saveUser(user)
         } catch (_: Exception) {}
-        try {
-            firestoreService.saveUser(user)
-        } catch (_: Exception) {}
     }
     suspend fun updateBanStatus(userId: String, banned: Boolean) {
         db.userDao().updateBanStatus(userId, banned)
         try {
             back4AppClient.updateUserBan(userId, banned)
-        } catch (_: Exception) {}
-        try {
-            firestoreService.updateUserBanStatus(userId, banned)
         } catch (_: Exception) {}
     }
 
@@ -383,31 +282,10 @@ class MarketplaceRepository(
         try {
             back4AppClient.updateUserVerification(userId, verified)
         } catch (_: Exception) {}
-        try {
-            firestoreService.updateUserVerification(userId, verified)
-        } catch (_: Exception) {}
     }
 
-    suspend fun syncUsersFromFirestore() {
-        try {
-            val b4aResult = back4AppClient.getAllUsers()
-            if (b4aResult.isSuccess) {
-                val users = b4aResult.getOrNull().orEmpty()
-                if (users.isNotEmpty()) {
-                    db.userDao().insertUsers(users)
-                }
-            }
-        } catch (_: Exception) {}
-        try {
-            val result = firestoreService.getAllUsers()
-            if (result.isSuccess) {
-                val users = result.getOrNull().orEmpty()
-                if (users.isNotEmpty()) {
-                    val entities = users.map { it.toUserEntity() }
-                    db.userDao().insertUsers(entities)
-                }
-            }
-        } catch (_: Exception) {}
+    suspend fun syncUsersFromCloud() {
+        try { back4AppClient.getAllUsers().getOrNull().orEmpty().let { if (it.isNotEmpty()) db.userDao().insertUsers(it) } } catch (_: Exception) {}
     }
     suspend fun requestVerification(userId: String) = db.userDao().requestVerification(userId)
     suspend fun deleteUser(userId: String) = db.userDao().deleteUser(userId)
@@ -515,95 +393,31 @@ class MarketplaceRepository(
         try {
             back4AppClient.savePlatformSettings(settings)
         } catch (_: Exception) {}
-        try {
-            firestoreService.savePlatformSettings(settings)
-        } catch (_: Exception) {}
     }
 
-    suspend fun syncPlatformSettingsFromFirestore() {
-        try {
-            val b4aResult = back4AppClient.getPlatformSettings()
-            if (b4aResult.isSuccess) {
-                b4aResult.getOrNull()?.let { remoteSettings ->
-                    db.settingsDao().insertOrUpdateSettings(remoteSettings)
-                }
-            }
-        } catch (_: Exception) {}
-        try {
-            val result = firestoreService.getPlatformSettings()
-            if (result.isSuccess) {
-                result.getOrNull()?.let { remoteSettings ->
-                    db.settingsDao().insertOrUpdateSettings(remoteSettings)
-                }
-            }
-        } catch (_: Exception) {}
+    suspend fun syncPlatformSettingsFromCloud() {
+        try { back4AppClient.getPlatformSettings().getOrNull()?.let { db.settingsDao().insertOrUpdateSettings(it) } } catch (_: Exception) {}
     }
 
-    fun getPlatformSettingsFromFirestore(): Flow<Result<PlatformSettingsEntity?>> {
-        return firestoreService.getPlatformSettingsFlow()
-    }
+
 
     fun getAllPayments(): Flow<List<PaymentOrderEntity>> = db.paymentDao().getAllPayments()
 
-    suspend fun syncPaymentsFromFirestore() {
-        val result = firestoreService.getAllPayments()
-        if (result.isSuccess) {
-            val payments = result.getOrNull().orEmpty()
-            if (payments.isNotEmpty()) {
-                val entities = payments.map { it.toPaymentOrderEntity() }
-                db.paymentDao().insertPayments(entities)
-            }
-        }
-    }
+    suspend fun syncPaymentsFromCloud() { }
 
     // --- Orders Management ---
     fun getLocalOrders(): Flow<List<OrderEntity>> = db.orderDao().getAllOrders()
     fun getLocalOrdersByBuyer(buyerId: String): Flow<List<OrderEntity>> = db.orderDao().getOrdersByBuyer(buyerId)
     fun getLocalOrdersBySeller(sellerId: String): Flow<List<OrderEntity>> = db.orderDao().getOrdersBySeller(sellerId)
     fun getLocalOrderById(orderId: String): Flow<OrderEntity?> = db.orderDao().getOrderById(orderId)
-
-    suspend fun createOrder(order: FirestoreOrder): Result<String> {
-        val entity = order.toOrderEntity()
-        db.orderDao().insertOrder(entity)
-        try {
-            back4AppClient.saveOrder(entity)
-        } catch (_: Exception) {}
-        val res = firestoreService.createOrder(order)
-        return Result.success(order.id)
+    suspend fun createOrder(order: OrderEntity): Result<String> { db.orderDao().insertOrder(order); try { back4AppClient.saveOrder(order) } catch (_: Exception) {}; return Result.success(order.id) }
+    suspend fun saveOrderLocally(order: OrderEntity) { db.orderDao().insertOrder(order); try { back4AppClient.saveOrder(order) } catch (_: Exception) {} }
+    fun getOrderFlow(orderId: String): Flow<Result<OrderEntity?>> = db.orderDao().getOrderById(orderId).map { Result.success(it) }
+    fun getUserOrdersFlow(buyerId: String): Flow<Result<List<OrderEntity>>> = db.orderDao().getOrdersByBuyer(buyerId).map { Result.success(it) }
+    fun getSellerOrdersFlow(sellerId: String): Flow<Result<List<OrderEntity>>> = db.orderDao().getOrdersBySeller(sellerId).map { Result.success(it) }
+    fun getAllOrdersAdminFlow(): Flow<Result<List<OrderEntity>>> = db.orderDao().getAllOrders().map { Result.success(it) }
+    suspend fun updateOrderStatus(orderId: String, newStatus: String, statusNote: String = "", trackingNumber: String? = null): Result<Unit> {
+        db.orderDao().updateOrderStatus(orderId, newStatus, statusNote, System.currentTimeMillis()); try { back4AppClient.updateOrderStatus(orderId, newStatus, statusNote, trackingNumber) } catch (_: Exception) {}; return Result.success(Unit)
     }
-
-    suspend fun saveOrderLocally(order: OrderEntity) {
-        db.orderDao().insertOrder(order)
-        try {
-            back4AppClient.saveOrder(order)
-        } catch (_: Exception) {}
-    }
-
-    fun getOrderFlow(orderId: String): Flow<Result<FirestoreOrder?>> = firestoreService.getOrderFlow(orderId)
-
-    fun getUserOrdersFlow(buyerId: String): Flow<Result<List<FirestoreOrder>>> = firestoreService.getUserOrdersFlow(buyerId)
-
-    fun getSellerOrdersFlow(sellerId: String): Flow<Result<List<FirestoreOrder>>> = firestoreService.getSellerOrdersFlow(sellerId)
-
-    fun getAllOrdersAdminFlow(): Flow<Result<List<FirestoreOrder>>> = firestoreService.getAllOrdersAdminFlow()
-
-    suspend fun updateOrderStatus(
-        orderId: String,
-        newStatus: String,
-        statusNote: String = "",
-        trackingNumber: String? = null
-    ): Result<Unit> {
-        db.orderDao().updateOrderStatus(orderId, newStatus, statusNote, System.currentTimeMillis())
-        try {
-            back4AppClient.updateOrderStatus(orderId, newStatus, statusNote, trackingNumber)
-        } catch (_: Exception) {}
-        val res = firestoreService.updateOrderStatus(orderId, newStatus, statusNote, trackingNumber)
-        return Result.success(Unit)
-    }
-
-    suspend fun syncOrdersLocally(orders: List<FirestoreOrder>) {
-        if (orders.isNotEmpty()) {
-            db.orderDao().insertOrders(orders.map { it.toOrderEntity() })
-        }
-    }
+    suspend fun syncOrdersLocally(orders: List<OrderEntity>) { if (orders.isNotEmpty()) db.orderDao().insertOrders(orders) }
 }

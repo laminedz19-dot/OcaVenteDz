@@ -588,7 +588,7 @@ fun ProfileScreen(
                         ) {
                             CircularProgressIndicator(color = EmeraldPrimary, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("جاري مزامنة طلبات الشحن من Firestore...", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("جاري مزامنة طلبات الشحن من الخدمة السحابية...", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }

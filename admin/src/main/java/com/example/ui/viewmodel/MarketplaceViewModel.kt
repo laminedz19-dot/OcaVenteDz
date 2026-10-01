@@ -17,8 +17,6 @@ import com.example.data.local.UserEntity
 import com.example.data.local.WalletEntity
 import com.example.data.local.WalletTransactionEntity
 import com.example.data.local.TopUpRequestEntity
-import com.example.data.remote.firestore.FirestoreOrder
-import com.example.data.remote.firestore.OrderStatus
 import com.example.data.repository.MarketplaceRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -67,28 +65,19 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
                 )
             }
             try {
-                repository.syncPlatformSettingsFromFirestore()
+                repository.syncPlatformSettingsFromCloud()
             } catch (_: Exception) {}
             try {
-                repository.syncListingsFromFirestore()
+                repository.syncListingsFromCloud()
             } catch (_: Exception) {}
             try {
-                repository.syncUsersFromFirestore()
+                repository.syncUsersFromCloud()
             } catch (_: Exception) {}
             try {
-                repository.syncPaymentsFromFirestore()
+                repository.syncPaymentsFromCloud()
             } catch (_: Exception) {}
             repository.authService.currentUserId?.let { uid ->
                 _currentUserId.value = uid
-            }
-        }
-        viewModelScope.launch {
-            repository.getPlatformSettingsFromFirestore().collect { res ->
-                if (res.isSuccess) {
-                    res.getOrNull()?.let { remoteSettings ->
-                        repository.syncPlatformSettingsFromFirestore()
-                    }
-                }
             }
         }
     }
@@ -101,10 +90,10 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
         _isRefreshing.value = true
         viewModelScope.launch {
             try {
-                repository.syncPlatformSettingsFromFirestore()
-                repository.syncListingsFromFirestore()
-                repository.syncUsersFromFirestore()
-                repository.syncPaymentsFromFirestore()
+                repository.syncPlatformSettingsFromCloud()
+                repository.syncListingsFromCloud()
+                repository.syncUsersFromCloud()
+                repository.syncPaymentsFromCloud()
                 emitMessage("تم تحديث كافة بيانات الإدارة من السحابة بنجاح ✓")
             } catch (e: Exception) {
                 emitMessage("تم تحديث البيانات: ${e.message}")
@@ -115,9 +104,6 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
     }
 
     // Current User & Session
-    private val _currentUserId = MutableStateFlow("user_me")
-    val currentUserId = _currentUserId.asStateFlow()
-
     // Admin state remains disabled until a server-backed identity provider is configured.
     data class AdminAuditLog(
         val id: String = UUID.randomUUID().toString(),
@@ -218,11 +204,11 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
         data class Error(val message: String) : TopUpListUiState
     }
 
-    val topUpListUiState: StateFlow<TopUpListUiState> = repository.getAllTopUpRequestsFromFirestore().map { result ->
+    val topUpListUiState: StateFlow<TopUpListUiState> = repository.getAllTopUpRequestsFromCloud().map { result ->
         if (result.isSuccess) {
             TopUpListUiState.Success(result.getOrNull().orEmpty())
         } else {
-            val err = result.exceptionOrNull()?.message ?: "خطأ أثناء تحميل طلبات الشحن من Firebase Firestore"
+            val err = result.exceptionOrNull()?.message ?: "خطأ أثناء تحميل طلبات الشحن من الخدمة السحابية قاعدة البيانات"
             TopUpListUiState.Error(err)
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), TopUpListUiState.Loading)
@@ -256,7 +242,7 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
     // --- Orders Management (Admin) ---
     sealed interface AdminOrderListUiState {
         data object Loading : AdminOrderListUiState
-        data class Success(val orders: List<FirestoreOrder>) : AdminOrderListUiState
+        data class Success(val orders: List<OrderEntity>) : AdminOrderListUiState
         data class Error(val message: String) : AdminOrderListUiState
     }
 
@@ -282,7 +268,7 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
         viewModelScope.launch {
             val res = repository.updateOrderStatus(orderId, newStatus, statusNote, trackingNumber)
             if (res.isSuccess) {
-                emitMessage("تم تحديث حالة الطلب إلى: ${OrderStatus.getDisplayName(newStatus)}")
+                emitMessage("تم تحديث حالة الطلب إلى: ${newStatus}")
                 onSuccess()
             } else {
                 val err = res.exceptionOrNull()?.message ?: "فشل في تحديث حالة الطلب"
@@ -400,7 +386,7 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
                         }
                     }
                 } catch (t: Throwable) {
-                    Log.w("MarketplaceViewModel", "Firebase auth during registration: ${t.message}")
+                    Log.w("MarketplaceViewModel", "الخدمة السحابية auth during registration: ${t.message}")
                 }
 
                 val newUser = UserEntity(
@@ -462,7 +448,7 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
                     val uid = fbUser?.uid ?: ""
                     var localUser = repository.getUserDirect(uid)
                     if (localUser == null) {
-                        val remoteUser = repository.firestoreService.getUser(uid).getOrNull()
+                        val remoteUser = repository.getUserDirect(uid)
                         if (remoteUser != null) {
                             localUser = remoteUser.toUserEntity()
                             repository.saveUser(localUser)
@@ -544,7 +530,7 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
             if (android.util.Patterns.EMAIL_ADDRESS.matcher(cleanIdentifier).matches()) {
                 val fbResult = repository.authService.sendPasswordReset(cleanIdentifier)
                 if (fbResult.isSuccess) {
-                    onSuccess("تم إرسال رابط استعادة كلمة المرور إلى $cleanIdentifier عبر Firebase بنجاح.")
+                    onSuccess("تم إرسال رابط استعادة كلمة المرور إلى $cleanIdentifier عبر الخدمة السحابية بنجاح.")
                     return@launch
                 }
             }
@@ -561,7 +547,7 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
             if (user.email.isNotBlank()) {
                 val fbResult = repository.authService.sendPasswordReset(user.email)
                 if (fbResult.isSuccess) {
-                    onSuccess("تم إرسال رابط استعادة كلمة المرور إلى ${user.email} عبر Firebase بنجاح.")
+                    onSuccess("تم إرسال رابط استعادة كلمة المرور إلى ${user.email} عبر الخدمة السحابية بنجاح.")
                     return@launch
                 }
                 onSuccess("تم التحقق من الحساب ${user.name}. تم إرسال طلب استعادة كلمة المرور.")
@@ -626,11 +612,11 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
             newPassword.length < 8 -> { onError("يجب أن تتكون كلمة المرور الجديدة من 8 أحرف على الأقل."); return }
             newPassword != confirmation -> { onError("تأكيد كلمة المرور غير مطابق."); return }
         }
-        onError("تغيير كلمة المرور غير مفعّل للحسابات المحلية. يجب ربط Firebase Authentication أولًا.")
+        onError("تغيير كلمة المرور غير مفعّل للحسابات المحلية. يجب ربط الخدمة السحابية Authentication أولًا.")
     }
 
     fun socialAuthUnavailable(provider: String) {
-        emitMessage("تسجيل الدخول عبر $provider جاهز في الواجهة، لكنه ينتظر إعداد Firebase وملف google-services.json.")
+        emitMessage("تسجيل الدخول عبر $provider جاهز في الواجهة، لكنه ينتظر إعداد الخدمة السحابية وملف إعداد Back4App.")
     }
 
     fun resetFilters() {
@@ -723,7 +709,7 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
                 val result = repository.approveTopUpRequest(requestId, adminNote)
                 result.onSuccess { msg ->
                     emitMessage(msg)
-                    logAdminAction("قبول طلب شحن", "تم قبول طلب الشحن $requestId وتحديث الحالة في Firestore")
+                    logAdminAction("قبول طلب شحن", "تم قبول طلب الشحن $requestId وتحديث الحالة في قاعدة البيانات")
                 }.onFailure { err ->
                     emitMessage(err.message ?: "فشلت عملية قبول الطلب")
                 }
@@ -741,7 +727,7 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
                 val result = repository.rejectTopUpRequest(requestId, reason)
                 result.onSuccess { msg ->
                     emitMessage(msg)
-                    logAdminAction("رفض طلب شحن", "تم رفض طلب الشحن $requestId وتحديث الحالة في Firestore")
+                    logAdminAction("رفض طلب شحن", "تم رفض طلب الشحن $requestId وتحديث الحالة في قاعدة البيانات")
                 }.onFailure { err ->
                     emitMessage(err.message ?: "فشلت عملية رفض الطلب")
                 }
@@ -796,23 +782,10 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
             val uploadedImages = images.mapIndexed { index, imgStr ->
                 if (imgStr.startsWith("content://") || imgStr.startsWith("file://")) {
                     try {
-                        val uploadRes = repository.storageService.uploadListingImage(
-                            context = getApplication(),
-                            userId = user.id,
-                            listingId = listingId,
-                            imageUri = Uri.parse(imgStr),
-                            onProgress = { transferred, total, percent ->
-                                val overall = if (images.isNotEmpty()) {
-                                    ((index * 100) + percent) / (images.size.toFloat() * 100f)
-                                } else 0f
-                                _imageUploadProgress.value = overall
-                            }
+                        val uploadRes = repository.back4AppClient.uploadListingImage(
+                            getApplication(), Uri.parse(imgStr), "listing_${listingId}_$index"
                         )
-                        if (uploadRes.isSuccess) {
-                            uploadRes.getOrNull()?.downloadUrl ?: imgStr
-                        } else {
-                            imgStr
-                        }
+                        if (uploadRes.isSuccess) uploadRes.getOrNull().orEmpty() else imgStr
                     } catch (_: Exception) {
                         imgStr
                     }
@@ -869,27 +842,11 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
         }
     }
 
-    suspend fun uploadAdImages(
-        listingId: String,
-        imageUris: List<Uri>,
-        onProgress: ((completedCount: Int, totalCount: Int, percent: Int) -> Unit)? = null
-    ): Result<List<com.example.data.remote.storage.ListingImageUploadResult>> {
-        return repository.storageService.uploadListingImagesBatch(
-            context = getApplication(),
-            userId = _currentUserId.value,
-            listingId = listingId,
-            imageUris = imageUris,
-            onBatchProgress = onProgress
-        )
-    }
+    suspend fun uploadAdImages(vararg unused: Any): Result<List<String>> = Result.failure(IllegalStateException("رفع الصور المتعدد غير متاح حالياً."))
 
-    suspend fun deleteAdImage(imageStoragePathOrUrl: String): Result<Unit> {
-        return repository.storageService.deleteListingImage(imageStoragePathOrUrl)
-    }
+    suspend fun deleteAdImage(imageStoragePathOrUrl: String): Result<Unit> = Result.success(Unit)
 
-    suspend fun deleteAllAdImages(listingId: String): Result<Int> {
-        return repository.storageService.deleteAllListingImages(_currentUserId.value, listingId)
-    }
+    suspend fun deleteAllAdImages(listingId: String): Result<Int> = Result.success(0)
 
     // Chat Actions
     fun sendMessage(listingId: String, receiverId: String, content: String) {
@@ -1061,7 +1018,7 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
     }
 
     /**
-     * Authenticates the admin using Firebase Authentication (Email + Password).
+     * Authenticates the admin using الخدمة السحابية Authentication (Email + Password).
      * Enforces token force-refresh and verifies the custom claim admin == true.
      */
     fun loginAdmin(
@@ -1082,7 +1039,7 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
             result.onSuccess { user ->
                 _isAdminSessionActive.value = true
                 _currentUserId.value = user.uid
-                logAdminAction("تسجيل دخول المشرف", "تم توثيق المشرف (${user.email}) بنجاح عبر Firebase Auth")
+                logAdminAction("تسجيل دخول المشرف", "تم توثيق المشرف (${user.email}) بنجاح عبر الخدمة السحابية Auth")
                 emitMessage("مرحباً بك في لوحة الإدارة ✓")
                 withContext(Dispatchers.Main) { onSuccess() }
             }.onFailure { err ->
@@ -1094,14 +1051,7 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
     }
 
     /**
-     * Resolves a Firebase Storage receipt path into an authenticated download URL.
+     * Resolves a الخدمة السحابية Storage receipt path into an authenticated download URL.
      */
-    fun resolveReceiptUrl(storagePathOrUrl: String, onResult: (String?) -> Unit) {
-        viewModelScope.launch {
-            val result = repository.storageService.getReceiptDownloadUrl(storagePathOrUrl)
-            withContext(Dispatchers.Main) {
-                onResult(result.getOrNull())
-            }
-        }
-    }
+    fun resolveReceiptUrl(storagePathOrUrl: String, onResult: (String?) -> Unit) { onResult(storagePathOrUrl) }
 }

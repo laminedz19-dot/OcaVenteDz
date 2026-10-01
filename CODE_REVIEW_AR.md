@@ -1,7 +1,7 @@
 # تقرير مراجعة الكود — OcaVente DZ
 
 **تاريخ المراجعة:** 2026-09-27
-**النطاق:** تطبيق Android/Jetpack Compose، طبقة Room، تكامل Firestore، المصادقة الإدارية، المحفظة والمدفوعات، واختبارات/CI.
+**النطاق:** تطبيق Android/Jetpack Compose، طبقة Room، تكامل Back4App، المصادقة الإدارية، المحفظة والمدفوعات، واختبارات/CI.
 **حالة المستودع عند المراجعة:** `main` نظيف ومتزامن مع `origin/main`.
 
 ## الخلاصة التنفيذية
@@ -26,11 +26,11 @@
 - توجد رموز قبول إضافية ثابتة: `2026` و`admin` و`1234`.
 - زر «المصادقة ببصمة المشرف» لا يستعمل BiometricPrompt؛ بل يستدعي `submitPin("2026")` مباشرة.
 - القفل مؤقت وداخل الذاكرة فقط، ويمكن تجاوز المنطق بتعديل APK أو استدعاء ViewModel.
-- لا توجد هوية مستخدم حقيقية أو Firebase Authentication أو تحقق من جهة خادمية.
+- لا توجد هوية مستخدم حقيقية أو Back4App Authentication أو تحقق من جهة خادمية.
 
 **الأثر:** أي شخص يملك APK أو يستطيع فحصه يمكنه دخول لوحة الإدارة وتغيير الإعلانات والمستخدمين والأسعار.
 
-**الإصلاح المقترح:** إزالة PIN المحلي بالكامل. استخدام Firebase Authentication/مزود هوية حقيقي، ثم جعل كل عملية إدارية تمر عبر Cloud Functions أو Backend يتحقق من claim مثل `admin=true`. يجب أيضاً فرض قواعد Firestore على مستوى الخادم؛ إخفاء زر الإدارة أو تغيير ViewModel ليس حماية.
+**الإصلاح المقترح:** إزالة PIN المحلي بالكامل. استخدام Back4App Authentication/مزود هوية حقيقي، ثم جعل كل عملية إدارية تمر عبر Cloud Functions أو Backend يتحقق من claim مثل `admin=true`. يجب أيضاً فرض قواعد Back4App على مستوى الخادم؛ إخفاء زر الإدارة أو تغيير ViewModel ليس حماية.
 
 #### 2. شحن المحفظة يمنح أموالاً فوراً دون تحقق
 
@@ -84,18 +84,18 @@
 
 **الإصلاح المقترح:** استخدم `withTransaction` في Room للعمليات المحلية، وتحديثاً مشروطاً من نوع `UPDATE wallets SET balanceDzd = balanceDzd - :fee WHERE userId = :id AND balanceDzd >= :fee`. في النظام الحقيقي نفّذ العملية خادمياً مع idempotency key فريد.
 
-#### 7. مصدر البيانات الفعلي محلي فقط تقريباً، وتكامل Firestore غير مكتمل
+#### 7. مصدر البيانات الفعلي محلي فقط تقريباً، وتكامل Back4App غير مكتمل
 
-**المراجع:** `MarketplaceRepository.kt:25-47,152-166`، `FirestoreService.kt:19-32,103-120`
+**المراجع:** `MarketplaceRepository.kt:25-47,152-166`، `Back4AppService.kt:19-32,103-120`
 
-- التدفقات المعروضة في ViewModel تأتي من Room، وليس من `getPublishedListingsFlow()` في Firestore.
-- المحادثات، المفضلة، البلاغات، التقييمات، المحافظ والإعدادات لا تتم مزامنتها مع Firestore.
-- عند غياب Firebase، تعيد دوال الحفظ `Result.success(Unit)` أو `emptyFlow()`، ما يخفي فشل المزامنة.
+- التدفقات المعروضة في ViewModel تأتي من Room، وليس من `getPublishedListingsFlow()` في Back4App.
+- المحادثات، المفضلة، البلاغات، التقييمات، المحافظ والإعدادات لا تتم مزامنتها مع Back4App.
+- عند غياب Back4App، تعيد دوال الحفظ `Result.success(Unit)` أو `emptyFlow()`، ما يخفي فشل المزامنة.
 - `saveListing` و`updateListingStatus` يتجاهلان نتيجة `Result` ويلتقطان الاستثناءات بصمت.
 
 **الأثر:** جهازان قد يريان بيانات مختلفة؛ عمليات المستخدم تختفي عند تغيير الجهاز؛ وقد يظن المستخدم أن البيانات محفوظة سحابياً وهي ليست كذلك.
 
-**الإصلاح المقترح:** تحديد مصدر حقيقة واحد (Backend/Firestore أو API)، وإضافة طبقة مزامنة واضحة مع حالات offline/queued/failed. لا تُرجع نجاحاً عند عدم توفر backend، وسجّل/اعرض فشل المزامنة.
+**الإصلاح المقترح:** تحديد مصدر حقيقة واحد (Backend/Back4App أو API)، وإضافة طبقة مزامنة واضحة مع حالات offline/queued/failed. لا تُرجع نجاحاً عند عدم توفر backend، وسجّل/اعرض فشل المزامنة.
 
 #### 8. حذف الحساب لا يحذف الحساب فعلياً
 
@@ -184,7 +184,7 @@ or by setting the sdk.dir path in .../local.properties.
 ## خطة إصلاح مقترحة بالترتيب
 
 1. **إيقاف أي استخدام مالي حقيقي** حتى فصل demo عن production وإزالة الشحن المحلي المباشر.
-2. استبدال بوابة PIN بمصادقة حقيقية وBackend authorization، وفرض قواعد Firestore/Cloud Functions.
+2. استبدال بوابة PIN بمصادقة حقيقية وBackend authorization، وفرض قواعد Back4App/Cloud Functions.
 3. بناء نموذج دفع بحالات pending/confirmed/failed وعمليات idempotent خادمية.
 4. إضافة migrations Room وإزالة destructive fallback من release.
 5. إصلاح حذف الحساب، الملكية، وguards في Repository/Backend.
@@ -192,7 +192,7 @@ or by setting the sdk.dir path in .../local.properties.
 7. إصلاح CI: executable bit، إزالة `|| true`، واختبارات ذات معنى.
 8. فصل `demoDebug` عن `release` وإزالة البيانات الشخصية/المالية الثابتة.
 9. تعديل workflow الإصدار ليبني Release موقّعاً فعلياً.
-10. بعد ذلك فقط إجراء اختبار أمني واختبار end-to-end على emulator وبيئة Firebase منفصلة.
+10. بعد ذلك فقط إجراء اختبار أمني واختبار end-to-end على emulator وبيئة Back4App منفصلة.
 
 ## التقييم النهائي
 
@@ -217,4 +217,4 @@ or by setting the sdk.dir path in .../local.properties.
 - جعل CI يفشل عند فشل الاختبارات، وتحويل Workflow الإصدار إلى `assembleRelease`/`bundleRelease` بدلاً من Debug.
 - تثبيت صلاحية التنفيذ لملف `gradlew`.
 
-> ما يزال ربط Firebase Authentication/Backend ومزود دفع حقيقي مطلوباً قبل إعادة تمكين الإدارة أو الشحن أو الإطلاق الإنتاجي؛ لا يمكن تعويض ذلك بإصلاحات داخل APK فقط.
+> ما يزال ربط Back4App Authentication/Backend ومزود دفع حقيقي مطلوباً قبل إعادة تمكين الإدارة أو الشحن أو الإطلاق الإنتاجي؛ لا يمكن تعويض ذلك بإصلاحات داخل APK فقط.
