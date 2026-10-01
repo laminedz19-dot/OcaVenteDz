@@ -475,9 +475,9 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
 
                 try {
                     withTimeoutOrNull(3500L) {
-                        val fbResult = repository.authService.registerWithEmail(authEmail, password)
-                        if (fbResult.isSuccess) {
-                            fbResult.getOrNull()?.uid?.let { userId = it }
+                        val authResult = repository.authService.registerWithEmail(authEmail, password)
+                        if (authResult.isSuccess) {
+                            authResult.getOrNull()?.uid?.let { userId = it }
                         } else {
                             val loginRes = repository.authService.loginWithEmail(authEmail, password)
                             if (loginRes.isSuccess) {
@@ -543,38 +543,29 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
                 } else {
                     "${cleanIdentifier}@ocaventedz.dz"
                 }
-                val fbResult = repository.authService.loginWithEmail(loginTarget, password)
-                if (fbResult.isSuccess) {
-                    val fbUser = fbResult.getOrNull()
-                    val uid = fbUser?.uid ?: ""
-                    var localUser = repository.getUserDirect(uid)
-                    if (localUser == null) {
-                        val remoteUser = repository.getUserDirect(uid)
-                        if (remoteUser != null) {
-                            localUser = remoteUser.toUserEntity()
-                            repository.saveUser(localUser)
-                        } else {
-                            localUser = UserEntity(
-                                id = uid,
-                                phone = if (!loginTarget.endsWith("@ocaventedz.dz")) "" else cleanIdentifier,
-                                email = if (!loginTarget.endsWith("@ocaventedz.dz")) cleanIdentifier else "",
-                                name = fbUser?.displayName ?: "مستخدم OcaVenteDz",
-                                avatarUrl = "",
-                                wilaya = "الجزائر",
-                                commune = "الجزائر الوسطى",
-                                bio = "عضو في OcaVenteDz",
-                                sellerRating = 5.0,
-                                reviewsCount = 0,
-                                adsCount = 0,
-                                createdAt = System.currentTimeMillis(),
-                                isVerified = false,
-                                verificationRequested = false,
-                                isBanned = false,
-                                role = "USER"
-                            )
-                            repository.saveUser(localUser)
-                        }
-                    }
+                val authResult = repository.authService.loginWithEmail(loginTarget, password)
+                if (authResult.isSuccess) {
+                    val authUser = authResult.getOrNull()
+                    val uid = authUser?.uid ?: ""
+                    val localUser = repository.getUserDirect(uid) ?: UserEntity(
+                        id = uid,
+                        phone = if (!loginTarget.endsWith("@ocaventedz.dz")) "" else cleanIdentifier,
+                        email = if (!loginTarget.endsWith("@ocaventedz.dz")) cleanIdentifier else "",
+                        name = authUser?.displayName ?: "مستخدم OcaVenteDz",
+                        avatarUrl = "",
+                        wilaya = "الجزائر",
+                        commune = "الجزائر الوسطى",
+                        bio = "عضو في OcaVenteDz",
+                        sellerRating = 5.0,
+                        reviewsCount = 0,
+                        adsCount = 0,
+                        createdAt = System.currentTimeMillis(),
+                        isVerified = false,
+                        verificationRequested = false,
+                        isBanned = false,
+                        role = "USER"
+                    )
+                    repository.saveUser(localUser)
                     saveLoggedInUserId(uid)
                     _currentUserId.value = uid
                     emitMessage("تم تسجيل الدخول بنجاح. مرحبًا ${localUser.name}!")
@@ -632,8 +623,8 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
 
         viewModelScope.launch {
             if (android.util.Patterns.EMAIL_ADDRESS.matcher(cleanIdentifier).matches()) {
-                val fbResult = repository.authService.sendPasswordReset(cleanIdentifier)
-                if (fbResult.isSuccess) {
+                val authResult = repository.authService.sendPasswordReset(cleanIdentifier)
+                if (authResult.isSuccess) {
                     onSuccess("تم إرسال رابط استعادة كلمة المرور إلى $cleanIdentifier عبر الخدمة السحابية بنجاح.")
                     return@launch
                 }
@@ -649,8 +640,8 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
                 return@launch
             }
             if (user.email.isNotBlank()) {
-                val fbResult = repository.authService.sendPasswordReset(user.email)
-                if (fbResult.isSuccess) {
+                val authResult = repository.authService.sendPasswordReset(user.email)
+                if (authResult.isSuccess) {
                     onSuccess("تم إرسال رابط استعادة كلمة المرور إلى ${user.email} عبر الخدمة السحابية بنجاح.")
                     return@launch
                 }
