@@ -41,7 +41,7 @@ fun ProfileScreen(
     onNavigateToSecurity: () -> Unit,
     onNavigateToSettings: () -> Unit,
     onNavigateToLegal: () -> Unit,
-    onNavigateToAdmin: () -> Unit,
+    onNavigateToAdmin: () -> Unit = {},
     onLogout: () -> Unit
 ) {
     var showLogoutDialog by remember { mutableStateOf(false) }
@@ -215,18 +215,6 @@ fun ProfileScreen(
                     subtitle = "شروط الاستخدام وسياسة الخصوصية",
                     onClick = onNavigateToLegal,
                     testTag = "menu_legal"
-                )
-            }
-
-            // Special Admin Switcher Section
-            MenuSectionCard(title = "إدارة المنصة") {
-                ProfileMenuItem(
-                    icon = Icons.Default.AdminPanelSettings,
-                    title = "لوحة تحكم الإدارة (Admin Panel)",
-                    subtitle = "إحصائيات المنصة، إدارة الإعلانات ومراجعة الشحن",
-                    iconTint = OcaGreenPrimary,
-                    onClick = onNavigateToAdmin,
-                    testTag = "menu_admin"
                 )
             }
 
