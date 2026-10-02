@@ -99,6 +99,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.local.ListingEntity
@@ -147,6 +148,11 @@ fun AdminDashboardScreen(
     var rejectTopUpTarget by remember { mutableStateOf<TopUpRequestEntity?>(null) }
     var rejectTopUpReason by remember { mutableStateOf("") }
     var showChangePinDialog by remember { mutableStateOf(false) }
+    var currentPasswordInput by remember { mutableStateOf("") }
+    var newPasswordInput by remember { mutableStateOf("") }
+    var confirmPasswordInput by remember { mutableStateOf("") }
+    var passwordChangeError by remember { mutableStateOf<String?>(null) }
+    var passwordChangeLoading by remember { mutableStateOf(false) }
 
     // Rejection Dialog state
     var rejectingAdId by remember { mutableStateOf<String?>(null) }
@@ -307,17 +313,70 @@ fun AdminDashboardScreen(
 
     if (showChangePinDialog) {
         AlertDialog(
-            onDismissRequest = { showChangePinDialog = false },
-            title = { Text("رمز دخول الإشراف", fontWeight = FontWeight.Bold) },
+            onDismissRequest = { if (!passwordChangeLoading) showChangePinDialog = false },
+            title = { Text("تغيير كلمة مرور المشرف", fontWeight = FontWeight.Bold) },
             text = {
-                Text(
-                    "يتم إدارة مصادقة المشرف وأمان النظام حالياً بصورة مشفرة ومؤمنة عبر الخدمة السحابية للبريد المعتمد (laminedz.19@gmail.com).",
-                    fontSize = 13.sp
-                )
+                Column {
+                    Text("الحساب: laminedz.19@gmail.com", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(modifier = Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value = currentPasswordInput,
+                        onValueChange = { currentPasswordInput = it; passwordChangeError = null },
+                        label = { Text("كلمة المرور الحالية") },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = newPasswordInput,
+                        onValueChange = { newPasswordInput = it; passwordChangeError = null },
+                        label = { Text("كلمة المرور الجديدة (8 أحرف على الأقل)") },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = confirmPasswordInput,
+                        onValueChange = { confirmPasswordInput = it; passwordChangeError = null },
+                        label = { Text("تأكيد كلمة المرور الجديدة") },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    passwordChangeError?.let { error ->
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(error, color = UrgentRed, fontSize = 12.sp)
+                    }
+                }
             },
             confirmButton = {
-                Button(onClick = { showChangePinDialog = false }) {
-                    Text("حسناً")
+                Button(
+                    enabled = !passwordChangeLoading,
+                    onClick = {
+                        passwordChangeLoading = true
+                        passwordChangeError = null
+                        viewModel.changePassword(
+                            currentPasswordInput,
+                            newPasswordInput,
+                            confirmPasswordInput,
+                            onSuccess = {
+                                passwordChangeLoading = false
+                                currentPasswordInput = ""
+                                newPasswordInput = ""
+                                confirmPasswordInput = ""
+                                showChangePinDialog = false
+                            },
+                            onError = {
+                                passwordChangeLoading = false
+                                passwordChangeError = it
+                            }
+                        )
+                    }
+                ) {
+                    if (passwordChangeLoading) CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    else Text("حفظ كلمة المرور")
                 }
             }
         )
@@ -1073,8 +1132,8 @@ fun AdminDashboardScreen(
                                     }
                                     Spacer(modifier = Modifier.width(10.dp))
                                     Column {
-                                        Text("رمز دخول الإشراف (Admin PIN)", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                        Text("حماية بوابة تطبيق OcaVenteDz إشراف من الوصول غير المصرح به", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text("كلمة مرور الإشراف السحابية", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                        Text("محميّة عبر Supabase Auth ويمكن تحديثها من داخل التطبيق", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
                                 }
                             }
@@ -1087,8 +1146,8 @@ fun AdminDashboardScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Column {
-                                    Text("الرمز السري الحالي مفعل ومحمي محلياً", fontSize = 12.sp, color = EmeraldDark, fontWeight = FontWeight.SemiBold)
-                                    Text("يمكنك تعيين رمز جديد مخصص في أي وقت", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text("كلمة المرور الحالية فعّالة للحساب السحابي", fontSize = 12.sp, color = EmeraldDark, fontWeight = FontWeight.SemiBold)
+                                    Text("تتم إعادة التحقق منها قبل حفظ كلمة المرور الجديدة", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
 
                                 Button(
@@ -1098,7 +1157,7 @@ fun AdminDashboardScreen(
                                 ) {
                                     Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.White)
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("تغيير الرمز الآن", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    Text("تغيير كلمة المرور", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
                                 }
                             }
                         }

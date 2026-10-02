@@ -613,7 +613,16 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
             newPassword.length < 8 -> { onError("يجب أن تتكون كلمة المرور الجديدة من 8 أحرف على الأقل."); return }
             newPassword != confirmation -> { onError("تأكيد كلمة المرور غير مطابق."); return }
         }
-        onError("تغيير كلمة المرور غير مفعّل للحسابات المحلية. يجب ربط الخدمة السحابية Authentication أولًا.")
+        viewModelScope.launch {
+            repository.authService.changeCurrentPassword(currentPassword, newPassword)
+                .onSuccess {
+                    logAdminAction("تغيير كلمة مرور المشرف", "تم تحديث كلمة المرور عبر Supabase Auth بعد إعادة التحقق")
+                    withContext(Dispatchers.Main) { onSuccess("تم تغيير كلمة المرور في السحابة بنجاح.") }
+                }
+                .onFailure { error ->
+                    withContext(Dispatchers.Main) { onError(error.message ?: "تعذر تغيير كلمة المرور") }
+                }
+        }
     }
 
     fun socialAuthUnavailable(provider: String) {

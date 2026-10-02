@@ -29,6 +29,20 @@ create table if not exists public.user_roles (
   primary key (user_id, role)
 );
 
+-- Grant the first admin role after the Supabase Auth account exists.
+-- The password is intentionally managed by Supabase Auth and never stored in SQL.
+insert into public.user_roles (user_id, role)
+select id, 'admin'
+from auth.users
+where lower(email) = lower('laminedz.19@gmail.com')
+on conflict (user_id, role) do nothing;
+
+update public.profiles
+set role = 'ADMIN', updated_at = now()
+where id in (
+  select id from auth.users where lower(email) = lower('laminedz.19@gmail.com')
+);
+
 create or replace function public.is_admin()
 returns boolean
 language sql

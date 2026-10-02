@@ -21,13 +21,6 @@ data class AuthUser(
 class AuthRepository {
     companion object {
         private const val TAG = "SupabaseAdminAuthRepository"
-        val ADMIN_EMAILS = setOf(
-            "laminedz.19@gmail.com",
-            "laminedz19@gmail.com",
-            "achridz01@gmail.com",
-            "admin@ocaventedz.dz",
-            "admin@ocaventedz.com"
-        )
     }
 
     private val http = OkHttpClient()
@@ -59,7 +52,7 @@ class AuthRepository {
         val result = authenticate("token?grant_type=password", email, password)
         val user = result.getOrNull()
             ?: return Result.failure(result.exceptionOrNull() ?: Exception("تعذر تسجيل الدخول"))
-        return if (ADMIN_EMAILS.contains(email.trim().lowercase()) || checkIsCurrentAdmin()) {
+        return if (checkIsCurrentAdmin()) {
             Result.success(user)
         } else {
             signOut()
@@ -160,6 +153,33 @@ class AuthRepository {
             }
         } catch (error: Exception) {
             Result.failure(error)
+        }
+    }
+
+    suspend fun changeCurrentPassword(currentPassword: String, newPassword: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val email = fetchCurrentUser(SupabaseSessionStore.accessToken().orEmpty()).getOrNull()?.email
+                ?: return@withContext Result.failure(Exception("تعذر تحديد بريد حساب المشرف الحالي"))
+            val verification = authenticate("token?grant_type=password", email, currentPassword)
+            if (verification.isFailure) {
+                return@withContext Result.failure(Exception("كلمة المرور الحالية غير صحيحة"))
+            }
+            val access = SupabaseSessionStore.accessToken()
+                ?: return@withContext Result.failure(Exception("انتهت جلسة المشرف، يرجى تسجيل الدخول من جديد"))
+            val response = http.newCall(
+                Request.Builder()
+                    .url("${BuildConfig.SUPABASE_URL}/auth/v1/user")
+                    .put(JSONObject().put("password", newPassword).toString().toRequestBody("application/json".toMediaType()))
+                    .addHeader("apikey", BuildConfig.SUPABASE_ANON_KEY)
+                    .addHeader("Authorization", "Bearer $access")
+                    .addHeader("Content-Type", "application/json")
+                    .build()
+            ).execute()
+            if (response.isSuccessful) Result.success(Unit)
+            else Result.failure(Exception("تعذر تحديث كلمة المرور في الخدمة السحابية"))
+        } catch (error: Exception) {
+            Log.e(TAG, "Change password error", error)
+            Result.failure(Exception("تعذر الاتصال بخدمة المصادقة", error))
         }
     }
 
