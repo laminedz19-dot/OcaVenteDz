@@ -197,7 +197,16 @@ class MarketplaceRepository(
         val uid = authService.currentUserId ?: userId.takeIf { it.isNotBlank() } ?: return@withContext Result.failure(IllegalStateException("يجب تسجيل الدخول أولاً."))
         val localUser = db.userDao().getUserByIdDirect(uid)
         val storedReceipt = if (receiptImageUriString.isNotBlank()) {
-            supabaseClient.uploadReceiptImage(context, Uri.parse(receiptImageUriString), "receipt_${System.currentTimeMillis()}").getOrNull().orEmpty()
+            val uploadResult = supabaseClient.uploadReceiptImage(
+                context,
+                Uri.parse(receiptImageUriString),
+                "receipt_${uid}_${System.currentTimeMillis()}"
+            )
+            uploadResult.getOrElse { error ->
+                return@withContext Result.failure(
+                    Exception(error.message ?: "تعذر رفع صورة الوصل إلى الخادم.", error)
+                )
+            }
         } else ""
         val request = TopUpRequestEntity(
             id = UUID.randomUUID().toString(), userId = uid,
@@ -206,8 +215,16 @@ class MarketplaceRepository(
             receiptImageUri = storedReceipt.ifBlank { receiptImageUriString }, status = "PENDING",
             adminNote = "", createdAt = System.currentTimeMillis(), reviewedAt = 0L
         )
-        val cloud = try { supabaseClient.submitTopUpRequest(request) } catch (_: Exception) { Result.failure(Exception("تعذر الاتصال بالخادم.")) }
-        if (cloud.isFailure && storedReceipt.isBlank() && reference.isBlank()) return@withContext Result.failure(cloud.exceptionOrNull() ?: Exception("تعذر تسجيل طلب الشحن."))
+        val cloud = try {
+            supabaseClient.submitTopUpRequest(request)
+        } catch (error: Exception) {
+            Result.failure(Exception("تعذر الاتصال بالخادم.", error))
+        }
+        if (cloud.isFailure) {
+            return@withContext Result.failure(
+                cloud.exceptionOrNull() ?: Exception("تعذر تسجيل طلب الشحن لدى المشرف.")
+            )
+        }
         db.topUpRequestDao().insertRequest(request)
         Result.success("تم إرسال طلب الشحن بنجاح! ستتم مراجعته واعتماد الرصيد قريباً.")
     }
