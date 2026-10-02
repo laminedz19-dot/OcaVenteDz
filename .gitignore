@@ -1,18 +1,7 @@
-*.iml
-.gradle
-.kotlin
-/local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
-.DS_Store
-/build
-/captures
-.externalNativeBuild
-.cxx
-local.properties
-.env
-debug.keystore
+# Copy this file to local.properties locally and do not commit it.
+# Back4App / Parse credentials
+BACK4APP_SERVER_URL=https://parseapi.back4app.com/
+BACK4APP_APPLICATION_ID=YOUR_PARSE_APP_ID
+BACK4APP_CLIENT_KEY=YOUR_PARSE_CLIENT_KEY
+
+# Keep other local settings here if needed.

@@ -1,5 +1,9 @@
-# انسخ هذا الملف إلى local.properties محلياً ولا ترفعه إلى Git.
-# قيم Back4App تؤخذ من لوحة التطبيق في Back4App.
+# Back4App / Parse configuration
+# Copy this file to .env or configure your environment variables in CI/CD.
+# Do not commit real credentials.
 BACK4APP_SERVER_URL=https://parseapi.back4app.com/
-BACK4APP_APPLICATION_ID=ضع_معرف_التطبيق_هنا
-BACK4APP_CLIENT_KEY=ضع_مفتاح_العميل_هنا
+BACK4APP_APPLICATION_ID=
+BACK4APP_CLIENT_KEY=
+
+# Optional app feature keys
+# GEMINI_API_KEY=
