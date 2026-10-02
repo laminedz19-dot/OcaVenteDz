@@ -19,7 +19,7 @@ import com.example.data.local.WalletEntity
 import com.example.data.local.WalletTransactionEntity
 import com.example.data.local.TopUpRequestEntity
 import com.example.data.remote.auth.AuthRepository
-import com.example.data.remote.back4app.Back4AppClient
+import com.example.data.remote.supabase.SupabaseClient
 import androidx.room.withTransaction
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -31,7 +31,7 @@ import java.util.UUID
 class MarketplaceRepository(
     private val db: AppDatabase,
     val authService: AuthRepository = AuthRepository(),
-    val back4AppClient: Back4AppClient = Back4AppClient()
+    val supabaseClient: SupabaseClient = SupabaseClient()
 ) {
 
     // Listings
@@ -42,27 +42,27 @@ class MarketplaceRepository(
     suspend fun getListingDirect(id: String): ListingEntity? = db.listingDao().getListingByIdDirect(id)
 
     suspend fun syncListingsFromCloud() {
-        try { back4AppClient.getListings().getOrNull().orEmpty().let { if (it.isNotEmpty()) db.listingDao().insertListings(it) } } catch (_: Exception) {}
+        try { supabaseClient.getListings().getOrNull().orEmpty().let { if (it.isNotEmpty()) db.listingDao().insertListings(it) } } catch (_: Exception) {}
     }
 
     suspend fun saveListing(listing: ListingEntity) {
         db.listingDao().insertListing(listing)
         try {
-            back4AppClient.saveListing(listing)
+            supabaseClient.saveListing(listing)
         } catch (_: Exception) {}
     }
 
     suspend fun updateListingStatus(id: String, status: String, rejectionReason: String = "") {
         db.listingDao().updateListingStatus(id, status, rejectionReason)
         try {
-            back4AppClient.updateListingStatus(id, status, rejectionReason)
+            supabaseClient.updateListingStatus(id, status, rejectionReason)
         } catch (_: Exception) {}
     }
 
     suspend fun deleteListing(id: String) {
         db.listingDao().deleteListing(id)
         try {
-            back4AppClient.updateListingStatus(id, "DELETED")
+            supabaseClient.updateListingStatus(id, "DELETED")
         } catch (_: Exception) {}
     }
 
@@ -186,7 +186,7 @@ class MarketplaceRepository(
     fun getAllTopUpRequests(): Flow<List<TopUpRequestEntity>> =
         db.topUpRequestDao().getAllRequests()
 
-    /** Submits a top-up request using Back4App and caches it in Room. */
+    /** Submits a top-up request using Supabase and caches it in Room. */
     suspend fun submitTopUpRequest(
         context: Context, userId: String = "", amount: Int, provider: String,
         reference: String, receiptImageUriString: String
@@ -197,16 +197,16 @@ class MarketplaceRepository(
         val uid = authService.currentUserId ?: userId.takeIf { it.isNotBlank() } ?: return@withContext Result.failure(IllegalStateException("يجب تسجيل الدخول أولاً."))
         val localUser = db.userDao().getUserByIdDirect(uid)
         val storedReceipt = if (receiptImageUriString.isNotBlank()) {
-            back4AppClient.uploadReceiptImage(context, Uri.parse(receiptImageUriString), "receipt_${System.currentTimeMillis()}").getOrNull().orEmpty()
+            supabaseClient.uploadReceiptImage(context, Uri.parse(receiptImageUriString), "receipt_${System.currentTimeMillis()}").getOrNull().orEmpty()
         } else ""
         val request = TopUpRequestEntity(
-            id = "req_" + UUID.randomUUID().toString().replace("-", "").take(16), userId = uid,
+            id = UUID.randomUUID().toString(), userId = uid,
             userName = localUser?.name ?: "مستخدم OcaVenteDz", userPhone = localUser?.phone ?: "",
             amountDzd = amount, provider = provider, reference = reference.trim(),
             receiptImageUri = storedReceipt.ifBlank { receiptImageUriString }, status = "PENDING",
             adminNote = "", createdAt = System.currentTimeMillis(), reviewedAt = 0L
         )
-        val cloud = try { back4AppClient.submitTopUpRequest(request) } catch (_: Exception) { Result.failure(Exception("تعذر الاتصال بالخادم.")) }
+        val cloud = try { supabaseClient.submitTopUpRequest(request) } catch (_: Exception) { Result.failure(Exception("تعذر الاتصال بالخادم.")) }
         if (cloud.isFailure && storedReceipt.isBlank() && reference.isBlank()) return@withContext Result.failure(cloud.exceptionOrNull() ?: Exception("تعذر تسجيل طلب الشحن."))
         db.topUpRequestDao().insertRequest(request)
         Result.success("تم إرسال طلب الشحن بنجاح! ستتم مراجعته واعتماد الرصيد قريباً.")
@@ -256,10 +256,10 @@ class MarketplaceRepository(
         return Result.failure(Exception("يرجى إرسال وصل التحويل للمراجعة اليدوية عبر شحن المحفظة."))
     }
 
-    /** Reads the balance from Back4App, then falls back to Room. */
+    /** Reads the balance from Supabase, then falls back to Room. */
     suspend fun getCurrentUserBalance(userId: String): Result<Int> {
         try {
-            val remote = back4AppClient.getWallet(userId).getOrNull()
+            val remote = supabaseClient.getWallet(userId).getOrNull()
             if (remote != null) {
                 db.walletDao().insertOrUpdateWallet(remote)
                 return Result.success(remote.balanceDzd)
@@ -345,7 +345,7 @@ class MarketplaceRepository(
     suspend fun saveUser(user: UserEntity) {
         db.userDao().insertUser(user)
         try {
-            back4AppClient.saveUser(user)
+            supabaseClient.saveUser(user)
         } catch (_: Exception) {}
 
     }
@@ -354,26 +354,26 @@ class MarketplaceRepository(
         val entity = WalletEntity(userId = userId, balanceDzd = 0, updatedAt = System.currentTimeMillis())
         db.walletDao().insertOrUpdateWallet(entity)
         try {
-            back4AppClient.saveWallet(entity)
+            supabaseClient.saveWallet(entity)
         } catch (_: Exception) {}
     }
 
     suspend fun updateUser(user: UserEntity) {
         db.userDao().updateUser(user)
         try {
-            back4AppClient.saveUser(user)
+            supabaseClient.saveUser(user)
         } catch (_: Exception) {}
     }
     suspend fun updateBanStatus(userId: String, banned: Boolean) {
         db.userDao().updateBanStatus(userId, banned)
         try {
-            back4AppClient.updateUserBan(userId, banned)
+            supabaseClient.updateUserBan(userId, banned)
         } catch (_: Exception) {}
     }
     suspend fun updateVerification(userId: String, verified: Boolean) {
         db.userDao().updateVerificationStatus(userId, verified)
         try {
-            back4AppClient.updateUserVerification(userId, verified)
+            supabaseClient.updateUserVerification(userId, verified)
         } catch (_: Exception) {}
     }
     suspend fun requestVerification(userId: String) = db.userDao().requestVerification(userId)
@@ -395,7 +395,7 @@ class MarketplaceRepository(
         offerAmount: Long = 0
     ) {
         val msg = ChatMessageEntity(
-            id = "MSG_" + UUID.randomUUID().toString(),
+            id = UUID.randomUUID().toString(),
             listingId = listingId,
             senderId = senderId,
             receiverId = receiverId,
@@ -407,7 +407,7 @@ class MarketplaceRepository(
         )
         db.chatDao().insertMessage(msg)
         try {
-            back4AppClient.saveChatMessage(msg)
+            supabaseClient.saveChatMessage(msg)
         } catch (_: Exception) {}
     }
 
@@ -444,7 +444,7 @@ class MarketplaceRepository(
     fun getAllReports(): Flow<List<ReportEntity>> = db.reportDao().getAllReports()
     suspend fun submitReport(reporterId: String, listingId: String, userId: String, reason: String, comment: String) {
         val report = ReportEntity(
-            id = "REP_" + UUID.randomUUID().toString().take(8),
+            id = UUID.randomUUID().toString(),
             reporterId = reporterId,
             reportedListingId = listingId,
             reportedUserId = userId,
@@ -455,7 +455,7 @@ class MarketplaceRepository(
         )
         db.reportDao().insertReport(report)
         try {
-            back4AppClient.saveReport(report)
+            supabaseClient.saveReport(report)
         } catch (_: Exception) {}
     }
     suspend fun updateReportStatus(reportId: String, status: String) = db.reportDao().updateReportStatus(reportId, status)
@@ -486,12 +486,12 @@ class MarketplaceRepository(
     suspend fun updatePlatformSettings(settings: PlatformSettingsEntity) {
         db.settingsDao().insertOrUpdateSettings(settings)
         try {
-            back4AppClient.savePlatformSettings(settings)
+            supabaseClient.savePlatformSettings(settings)
         } catch (_: Exception) {}
     }
 
     suspend fun syncPlatformSettingsFromCloud() {
-        try { back4AppClient.getPlatformSettings().getOrNull()?.let { db.settingsDao().insertOrUpdateSettings(it) } } catch (_: Exception) {}
+        try { supabaseClient.getPlatformSettings().getOrNull()?.let { db.settingsDao().insertOrUpdateSettings(it) } } catch (_: Exception) {}
     }
 
 
@@ -502,15 +502,15 @@ class MarketplaceRepository(
     fun getLocalOrdersByBuyer(buyerId: String): Flow<List<OrderEntity>> = db.orderDao().getOrdersByBuyer(buyerId)
     fun getLocalOrdersBySeller(sellerId: String): Flow<List<OrderEntity>> = db.orderDao().getOrdersBySeller(sellerId)
     fun getLocalOrderById(orderId: String): Flow<OrderEntity?> = db.orderDao().getOrderById(orderId)
-    suspend fun createOrder(order: OrderEntity): Result<String> { db.orderDao().insertOrder(order); try { back4AppClient.saveOrder(order) } catch (_: Exception) {}; return Result.success(order.id) }
-    suspend fun saveOrderLocally(order: OrderEntity) { db.orderDao().insertOrder(order); try { back4AppClient.saveOrder(order) } catch (_: Exception) {} }
+    suspend fun createOrder(order: OrderEntity): Result<String> { db.orderDao().insertOrder(order); try { supabaseClient.saveOrder(order) } catch (_: Exception) {}; return Result.success(order.id) }
+    suspend fun saveOrderLocally(order: OrderEntity) { db.orderDao().insertOrder(order); try { supabaseClient.saveOrder(order) } catch (_: Exception) {} }
     fun getOrderFlow(orderId: String): Flow<Result<OrderEntity?>> = db.orderDao().getOrderById(orderId).map { Result.success(it) }
     fun getUserOrdersFlow(buyerId: String): Flow<Result<List<OrderEntity>>> = db.orderDao().getOrdersByBuyer(buyerId).map { Result.success(it) }
     fun getSellerOrdersFlow(sellerId: String): Flow<Result<List<OrderEntity>>> = db.orderDao().getOrdersBySeller(sellerId).map { Result.success(it) }
     fun getAllOrdersAdminFlow(): Flow<Result<List<OrderEntity>>> = db.orderDao().getAllOrders().map { Result.success(it) }
     suspend fun updateOrderStatus(orderId: String, newStatus: String, statusNote: String = "", trackingNumber: String? = null): Result<Unit> {
         db.orderDao().updateOrderStatus(orderId, newStatus, statusNote, System.currentTimeMillis())
-        try { back4AppClient.updateOrderStatus(orderId, newStatus, statusNote, trackingNumber) } catch (_: Exception) {}
+        try { supabaseClient.updateOrderStatus(orderId, newStatus, statusNote, trackingNumber) } catch (_: Exception) {}
         return Result.success(Unit)
     }
     suspend fun syncOrdersLocally(orders: List<OrderEntity>) { if (orders.isNotEmpty()) db.orderDao().insertOrders(orders) }

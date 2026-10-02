@@ -29,9 +29,8 @@ android {
     versionName = "1.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-    buildConfigField("String", "BACK4APP_SERVER_URL", "\"${localValue("BACK4APP_SERVER_URL", "https://parseapi.back4app.com/")}\"")
-    buildConfigField("String", "BACK4APP_APPLICATION_ID", "\"${localValue("BACK4APP_APPLICATION_ID")}\"")
-    buildConfigField("String", "BACK4APP_CLIENT_KEY", "\"${localValue("BACK4APP_CLIENT_KEY")}\"")
+    buildConfigField("String", "SUPABASE_URL", "\"${localValue("SUPABASE_URL", "https://lvkfeclbfaquspxnvzfe.supabase.co")}\"")
+    buildConfigField("String", "SUPABASE_ANON_KEY", "\"${localValue("SUPABASE_ANON_KEY")}\"")
   }
 
   signingConfigs {
@@ -98,7 +97,6 @@ dependencies {
   implementation(libs.androidx.room.runtime)
   implementation(libs.coil.compose)
   implementation(libs.converter.moshi)
-  implementation(libs.parse.sdk)
   implementation(libs.kotlinx.coroutines.android)
   implementation(libs.kotlinx.coroutines.core)
   implementation(libs.logging.interceptor)

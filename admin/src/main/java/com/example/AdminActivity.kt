@@ -144,7 +144,7 @@ class AdminActivity : ComponentActivity() {
 }
 
 /**
- * بوابة دخول المشرف عبر المصادقة المحلية/Back4App.
+ * بوابة دخول المشرف عبر المصادقة المحلية/Supabase.
  * Authenticates via the configured application account
  * using the configured application authentication. No local PIN or hardcoded credentials.
  */

@@ -609,7 +609,7 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
     }
 
     fun socialAuthUnavailable(provider: String) {
-        emitMessage("تسجيل الدخول عبر $provider جاهز في الواجهة، لكنه ينتظر إعداد الخدمة السحابية وملف إعداد Back4App.")
+        emitMessage("تسجيل الدخول عبر $provider جاهز في الواجهة، لكنه ينتظر إعداد الخدمة السحابية وملف إعداد Supabase.")
     }
 
     fun resetFilters() {
@@ -769,13 +769,13 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
                 role = "USER"
             )
 
-            val listingId = "LST_" + UUID.randomUUID().toString().take(8)
+            val listingId = UUID.randomUUID().toString()
             val now = System.currentTimeMillis()
 
             val uploadedImages = images.mapIndexed { index, imgStr ->
                 if (imgStr.startsWith("content://") || imgStr.startsWith("file://")) {
                     try {
-                        val uploadRes = repository.back4AppClient.uploadListingImage(
+                        val uploadRes = repository.supabaseClient.uploadListingImage(
                             getApplication(), Uri.parse(imgStr), "listing_${listingId}_$index"
                         )
                         if (uploadRes.isSuccess) uploadRes.getOrNull().orEmpty() else imgStr

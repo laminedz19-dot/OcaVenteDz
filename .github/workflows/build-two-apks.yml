@@ -41,9 +41,8 @@ jobs:
       - name: Build both debug APKs
         run: gradle :app:assembleDebug :admin:assembleDebug --no-daemon
         env:
-          BACK4APP_SERVER_URL: ${{ secrets.BACK4APP_SERVER_URL }}
-          BACK4APP_APPLICATION_ID: ${{ secrets.BACK4APP_APPLICATION_ID }}
-          BACK4APP_CLIENT_KEY: ${{ secrets.BACK4APP_CLIENT_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
 
       - name: Prepare Clean APKs
         run: |
@@ -74,7 +73,7 @@ jobs:
         if: github.ref == 'refs/heads/main'
         with:
           tag_name: v1.0.5
-          name: "OcaVente DZ APKs v1.0.5 (تكامل سحابي ومزامنة Back4App و Back4App)"
+          name: "OcaVente DZ APKs v1.0.5 (تكامل سحابي ومزامنة Supabase)"
           make_latest: true
           body: |
             ### تحميل مباشر لملفات APK بدون الحاجة لفك الضغط:
@@ -82,7 +81,7 @@ jobs:
             - اضغط مباشرة على ملف **OcaVenteDz-Admin.apk** أدناه لتنزيل تطبيق الإدارة وتثبيته فوراً.
 
             **أبرز التحديثات في v1.0.5:**
-            - تهيئة وتكامل عميل Back4App Parse السحابي مع التطبيق.
+            - تهيئة وتكامل عميل Supabase السحابي مع التطبيق.
             - استقرار وثبات جلسة تسجيل الدخول حتى طلب الخروج الصريح.
             - التحقق السحابي المزدوج وإدارة وصولات الدفع والإشراف المركزي.
           files: |
