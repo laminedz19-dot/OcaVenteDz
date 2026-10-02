@@ -58,7 +58,7 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
     }
 
     // Declare state before init blocks: coroutines launched from init may start immediately.
-    private val _currentUserId = MutableStateFlow(
+    private val _currentUserId = MutableStateFlow("")
         sessionPrefs.getString("logged_in_user_id", null)?.takeIf { it.isNotBlank() && it != "deleted" }
             ?: ""
     )
@@ -142,12 +142,6 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
     )
     val adminAuditLogs: StateFlow<List<AdminAuditLog>> = _adminAuditLogs.asStateFlow()
 
-    fun activateAdminSession() {
-        _isAdminSessionActive.value = true
-        _currentUserId.value = "admin_super"
-        logAdminAction("تسجيل دخول المشرف", "تم فتح جلسة الإشراف عبر تطبيق الإدارة المستقل")
-    }
-
     fun authenticateAdmin(): Boolean {
         emitMessage("دخول الإدارة غير متاح قبل إعداد مصادقة خادمية حقيقية.")
         return false
@@ -155,7 +149,7 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
 
     fun exitAdminSession() {
         _isAdminSessionActive.value = false
-        _currentUserId.value = "user_me"
+        _currentUserId.value = ""
         logAdminAction("إنهاء جلسة الإشراف", "تم إغلاق وحدة التحكم الإدارية والعودة إلى واجهة المتجر العامة")
         emitMessage("تم إغلاق جلسة الإدارة وتأمين البوابة بنجاح")
     }

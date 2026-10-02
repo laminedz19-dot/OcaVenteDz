@@ -119,6 +119,7 @@ fun CreateAdScreen(
     val platformSettings by viewModel.platformSettings.collectAsState()
     val currentWallet by viewModel.currentWallet.collectAsState()
     val imageUploadProgress by viewModel.imageUploadProgress.collectAsState()
+    val currentUserId by viewModel.currentUserId.collectAsState()
 
     var currentStep by remember { mutableIntStateOf(1) } // 1: Category, 2: Details, 3: Media & Location, 4: Preview, 5: Package & Payment
 
@@ -731,9 +732,9 @@ fun CreateAdScreen(
                 // Realistic preview card
                 val previewListing = ListingEntity(
                     id = "preview",
-                    userId = "user_me",
-                    userName = "محمد أمين دزيري",
-                    userPhone = "+213 555 12 34 56",
+                    userId = currentUserId,
+                    userName = "المستخدم الحالي",
+                    userPhone = "",
                     isPhoneVisible = true,
                     title = title,
                     description = description,
