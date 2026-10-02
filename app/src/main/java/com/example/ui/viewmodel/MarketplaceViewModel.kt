@@ -58,7 +58,7 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
     }
 
     // Declare state before init blocks: coroutines launched from init may start immediately.
-    private val _currentUserId = MutableStateFlow("")
+    private val _currentUserId = MutableStateFlow(
         sessionPrefs.getString("logged_in_user_id", null)?.takeIf { it.isNotBlank() && it != "deleted" }
             ?: ""
     )
