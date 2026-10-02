@@ -41,8 +41,9 @@ jobs:
       - name: Build both debug APKs
         run: gradle :app:assembleDebug :admin:assembleDebug --no-daemon
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          # Client-side Supabase settings; RLS remains the security boundary.
+          SUPABASE_URL: https://lvkfeclbfaquspxnvzfe.supabase.co
+          SUPABASE_ANON_KEY: sb_publishable_-f6817O5hUa21jVAC9RibA_Br6mjq3U
 
       - name: Prepare Clean APKs
         run: |
