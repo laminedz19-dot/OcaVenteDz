@@ -76,8 +76,14 @@ class AuthRepository {
             ).execute()
             val text = response.body?.string().orEmpty()
             if (!response.isSuccessful) {
+                val error = runCatching { JSONObject(text) }.getOrNull()
                 return@withContext Result.failure(
-                    Exception(JSONObject(text).optString("msg", "تعذر تنفيذ المصادقة"))
+                    Exception(
+                        error?.optString("msg")?.takeIf { it.isNotBlank() }
+                            ?: error?.optString("message")?.takeIf { it.isNotBlank() }
+                            ?: error?.optString("error_description")?.takeIf { it.isNotBlank() }
+                            ?: "تعذر تنفيذ المصادقة (HTTP ${response.code})"
+                    )
                 )
             }
             val json = JSONObject(text)
@@ -135,6 +141,7 @@ class AuthRepository {
                 .addHeader("Authorization", "Bearer ${SupabaseSessionStore.accessToken()}")
                 .build()
             val text = http.newCall(response).execute().body?.string().orEmpty()
+            Log.d(TAG, "Admin role check response: ${text.take(300)}")
             text.trim().startsWith("[") && text.contains(uid)
         } catch (_: Exception) {
             false
@@ -195,7 +202,7 @@ class AuthRepository {
             JSONObject(
                 String(
                     android.util.Base64.decode(
-                        parts[1],
+                        parts[1].padEnd(parts[1].length + ((4 - parts[1].length % 4) % 4), '='),
                         android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP
                     )
                 )

@@ -73,8 +73,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: github.ref == 'refs/heads/main'
         with:
-          tag_name: v1.0.5
-          name: "OcaVente DZ APKs v1.0.5 (تكامل سحابي ومزامنة Supabase)"
+          tag_name: v1.0.6
+          name: "OcaVente DZ APKs v1.0.6 (إصلاح مصادقة المشرف)"
           make_latest: true
           body: |
             ### تحميل مباشر لملفات APK بدون الحاجة لفك الضغط:
