@@ -437,6 +437,7 @@ class MarketplaceRepository(
             timestamp = System.currentTimeMillis()
         )
         db.reviewDao().insertReview(review)
+        try { supabaseClient.saveReview(review) } catch (_: Exception) {}
         return Result.success("تم إضافة تقييمك بنجاح")
     }
 
@@ -466,17 +467,18 @@ class MarketplaceRepository(
     suspend fun toggleFavorite(userId: String, listingId: String, currentlyFav: Boolean) {
         if (currentlyFav) {
             db.favoriteDao().deleteFavorite(userId, listingId)
+            try { supabaseClient.deleteFavorite(userId, listingId) } catch (_: Exception) {}
         } else {
-            db.favoriteDao().insertFavorite(
-                FavoriteEntity(
-                    id = "FAV_${userId}_$listingId",
-                    userId = userId,
-                    listingId = listingId,
-                    notifyPriceDrop = true,
-                    notifySimilar = true,
-                    timestamp = System.currentTimeMillis()
-                )
+            val favorite = FavoriteEntity(
+                id = "FAV_${userId}_$listingId",
+                userId = userId,
+                listingId = listingId,
+                notifyPriceDrop = true,
+                notifySimilar = true,
+                timestamp = System.currentTimeMillis()
             )
+            db.favoriteDao().insertFavorite(favorite)
+            try { supabaseClient.saveFavorite(favorite) } catch (_: Exception) {}
         }
     }
 
