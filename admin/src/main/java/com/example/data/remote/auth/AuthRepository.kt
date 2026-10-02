@@ -91,7 +91,7 @@ class AuthRepository {
             val user = json.optJSONObject("user") ?: json
             json.optString("access_token")
                 .takeIf { it.isNotBlank() }
-                ?.let { SupabaseSessionStore.save(it, json.optString("refresh_token")) }
+                ?.let { SupabaseSessionStore.save(it, json.optString("refresh_token"), json.optLong("expires_in", 3600L)) }
             Result.success(
                 AuthUser(
                     uid = user.optString("id"),
@@ -104,6 +104,33 @@ class AuthRepository {
             Log.e(TAG, "Auth error", error)
             Result.failure(Exception("تعذر الاتصال بخدمة المصادقة", error))
         }
+    }
+
+    suspend fun restoreSession(): Result<AuthUser?> = withContext(Dispatchers.IO) {
+        try {
+            val access = SupabaseSessionStore.accessToken()
+            val refresh = SupabaseSessionStore.refreshToken()
+            if (access.isNullOrBlank()) return@withContext Result.success(null)
+            if (!SupabaseSessionStore.isExpired()) return@withContext fetchCurrentUser(access)
+            if (refresh.isNullOrBlank()) { SupabaseSessionStore.clear(); return@withContext Result.success(null) }
+            val response = http.newCall(request("token?grant_type=refresh_token", JSONObject().put("refresh_token", refresh))).execute()
+            val text = response.body?.string().orEmpty()
+            if (!response.isSuccessful) { SupabaseSessionStore.clear(); return@withContext Result.failure(Exception("انتهت جلسة المدير، يرجى تسجيل الدخول من جديد")) }
+            val json = JSONObject(text)
+            val newAccess = json.optString("access_token")
+            if (newAccess.isBlank()) { SupabaseSessionStore.clear(); return@withContext Result.success(null) }
+            SupabaseSessionStore.save(newAccess, json.optString("refresh_token").ifBlank { refresh }, json.optLong("expires_in", 3600L))
+            fetchCurrentUser(newAccess)
+        } catch (error: Exception) { Log.e(TAG, "Restore admin session error", error); SupabaseSessionStore.clear(); Result.failure(Exception("تعذر استعادة جلسة المدير", error)) }
+    }
+
+    private fun fetchCurrentUser(access: String): Result<AuthUser?> {
+        val response = http.newCall(Request.Builder().url("${BuildConfig.SUPABASE_URL}/auth/v1/user").get()
+            .addHeader("apikey", BuildConfig.SUPABASE_ANON_KEY).addHeader("Authorization", "Bearer $access").build()).execute()
+        val text = response.body?.string().orEmpty()
+        if (!response.isSuccessful) return Result.failure(Exception("جلسة المدير غير صالحة"))
+        val user = JSONObject(text)
+        return Result.success(AuthUser(user.optString("id"), user.optString("email").takeIf { it.isNotBlank() }, user.optJSONObject("user_metadata")?.optString("name"), user.optString("phone").takeIf { it.isNotBlank() }))
     }
 
     suspend fun checkIsCurrentAdmin(): Boolean = withContext(Dispatchers.IO) {

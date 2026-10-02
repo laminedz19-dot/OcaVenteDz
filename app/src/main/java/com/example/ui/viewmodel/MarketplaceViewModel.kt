@@ -95,18 +95,23 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
                 repository.syncListingsFromCloud()
             } catch (_: Exception) {}
 
-            val savedUid = getSavedUserId()
-            if (savedUid.isNotBlank() && savedUid != "deleted") {
-                _currentUserId.value = savedUid
-            } else {
-                repository.authService.currentUserId?.let { uid ->
-                    if (uid.isNotBlank() && uid != "deleted") {
-                        saveLoggedInUserId(uid)
-                        _currentUserId.value = uid
-                    }
-                }
-            }
+            restoreSavedSession()
         }
+    }
+
+    private suspend fun restoreSavedSession() {
+        val result = repository.authService.restoreSession()
+        val uid = result.getOrNull()?.uid?.takeIf { it.isNotBlank() && it != "deleted" }
+        if (uid == null) {
+            clearSavedUserId()
+            _currentUserId.value = ""
+            return
+        }
+        repository.supabaseClient.getAllUsers().getOrNull()
+            ?.firstOrNull { it.id == uid }
+            ?.let { repository.saveUser(it) }
+        saveLoggedInUserId(uid)
+        _currentUserId.value = uid
     }
 
     // Current User & Session

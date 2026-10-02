@@ -78,9 +78,7 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
             try {
                 repository.syncPaymentsFromCloud()
             } catch (_: Exception) {}
-            repository.authService.currentUserId?.let { uid ->
-                _currentUserId.value = uid
-            }
+            restoreAdminSession()
         }
     }
 
@@ -138,9 +136,19 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
         logAdminAction("تسجيل دخول المشرف", "تم فتح جلسة الإشراف عبر تطبيق الإدارة المستقل")
     }
 
-    fun authenticateAdmin(): Boolean {
-        emitMessage("دخول الإدارة غير متاح قبل إعداد مصادقة خادمية حقيقية.")
-        return false
+    fun restoreAdminSession(onSuccess: () -> Unit = {}) {
+        viewModelScope.launch {
+            val user = repository.authService.restoreSession().getOrNull()
+            if (user != null && repository.authService.checkIsCurrentAdmin()) {
+                _isAdminSessionActive.value = true
+                _currentUserId.value = user.uid
+                logAdminAction("استعادة جلسة المشرف", "تمت استعادة الجلسة والتحقق من صلاحية admin")
+                withContext(Dispatchers.Main) { onSuccess() }
+            } else {
+                repository.authService.signOut()
+                _isAdminSessionActive.value = false
+            }
+        }
     }
 
     fun exitAdminSession() {

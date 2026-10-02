@@ -32,9 +32,34 @@ class AuthRepository {
             val text = response.body?.string().orEmpty()
             if (!response.isSuccessful) return@withContext Result.failure(Exception(toArabicMessage(JSONObject(text))))
             val json = JSONObject(text); val user = json.optJSONObject("user") ?: json; val access = json.optString("access_token")
-            if (access.isNotBlank()) SupabaseSessionStore.save(access, json.optString("refresh_token"))
+            if (access.isNotBlank()) SupabaseSessionStore.save(access, json.optString("refresh_token"), json.optLong("expires_in", 3600L))
             Result.success(AuthUser(user.optString("id"), user.optString("email"), user.optJSONObject("user_metadata")?.optString("name"), user.optString("phone")))
         } catch (e: Exception) { Log.e(TAG, "Auth error", e); Result.failure(Exception("تعذر الاتصال بخدمة المصادقة", e)) }
+    }
+    suspend fun restoreSession(): Result<AuthUser?> = withContext(Dispatchers.IO) {
+        try {
+            val access = SupabaseSessionStore.accessToken()
+            val refresh = SupabaseSessionStore.refreshToken()
+            if (access.isNullOrBlank()) return@withContext Result.success(null)
+            if (!SupabaseSessionStore.isExpired()) return@withContext fetchCurrentUser(access)
+            if (refresh.isNullOrBlank()) { SupabaseSessionStore.clear(); return@withContext Result.success(null) }
+            val response = http.newCall(authRequest("token?grant_type=refresh_token", JSONObject().put("refresh_token", refresh))).execute()
+            val text = response.body?.string().orEmpty()
+            if (!response.isSuccessful) { SupabaseSessionStore.clear(); return@withContext Result.failure(Exception("انتهت جلسة الدخول، يرجى تسجيل الدخول من جديد")) }
+            val json = JSONObject(text)
+            val newAccess = json.optString("access_token")
+            if (newAccess.isBlank()) { SupabaseSessionStore.clear(); return@withContext Result.success(null) }
+            SupabaseSessionStore.save(newAccess, json.optString("refresh_token").ifBlank { refresh }, json.optLong("expires_in", 3600L))
+            fetchCurrentUser(newAccess)
+        } catch (e: Exception) { Log.e(TAG, "Restore session error", e); SupabaseSessionStore.clear(); Result.failure(Exception("تعذر استعادة جلسة الدخول", e)) }
+    }
+    private fun fetchCurrentUser(access: String): Result<AuthUser?> {
+        val response = http.newCall(Request.Builder().url("${BuildConfig.SUPABASE_URL}/auth/v1/user").get()
+            .addHeader("apikey", BuildConfig.SUPABASE_ANON_KEY).addHeader("Authorization", "Bearer $access").build()).execute()
+        val text = response.body?.string().orEmpty()
+        if (!response.isSuccessful) return Result.failure(Exception("جلسة الدخول غير صالحة"))
+        val user = JSONObject(text)
+        return Result.success(AuthUser(user.optString("id"), user.optString("email").takeIf { it.isNotBlank() }, user.optJSONObject("user_metadata")?.optString("name"), user.optString("phone").takeIf { it.isNotBlank() }))
     }
     suspend fun sendPasswordReset(email: String): Result<Unit> = withContext(Dispatchers.IO) {
         try { val r=http.newCall(authRequest("recover", JSONObject().put("email",email.trim()))).execute(); if(r.isSuccessful) Result.success(Unit) else Result.failure(Exception("تعذر إرسال رابط استعادة كلمة المرور")) } catch(e:Exception){Result.failure(e)}

@@ -88,12 +88,10 @@ class AdminActivity : ComponentActivity() {
                         }
                     }
 
-                    // Check if current user already has valid admin claims on startup
+                    // Restore and validate the Supabase admin session on startup.
                     LaunchedEffect(Unit) {
-                        val isCurrentAdmin = viewModel.authenticateAdmin()
-                        if (isCurrentAdmin) {
+                        viewModel.restoreAdminSession {
                             isAuthenticated = true
-                            viewModel.activateAdminSession()
                         }
                     }
 
