@@ -1,6 +1,6 @@
 # Supabase setup for OcaVenteDz
 
-The migrations in this directory replace the former Back4App/Parse data layer.
+The migrations in this directory define the complete cloud data layer for OcaVenteDz.
 
 ## Apply the database
 
