@@ -61,7 +61,6 @@ fun RegisterScreen(
 ) {
     var name by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
-    var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
     var wilaya by remember { mutableStateOf("16 - الجزائر العاصمة") }
@@ -118,7 +117,7 @@ fun RegisterScreen(
                 textAlign = TextAlign.Center
             )
             Text(
-                text = "أنشئ حسابك لبيع وشراء المنتجات بسهولة وأمان.",
+                text = "أنشئ حسابك برقم هاتفك لبيع وشراء المنتجات بسهولة وأمان.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
                 fontSize = 14.sp
@@ -143,17 +142,6 @@ fun RegisterScreen(
                 placeholder = { Text("05 55 12 34 56") },
                 leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                singleLine = true,
-                enabled = !isSubmitting
-            )
-
-            OutlinedTextField(
-                value = email,
-                onValueChange = { email = it; errorMessage = null },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("البريد الإلكتروني (اختياري)") },
-                leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                 singleLine = true,
                 enabled = !isSubmitting
             )
@@ -312,7 +300,7 @@ fun RegisterScreen(
                     viewModel.registerUser(
                         name = name,
                         phone = phone,
-                        email = email,
+                        email = "",
                         wilaya = wilaya,
                         commune = commune,
                         password = password,

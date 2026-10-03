@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.HowToReg
 import androidx.compose.material.icons.filled.Login
 import androidx.compose.material3.Button
@@ -22,6 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -31,6 +33,7 @@ import com.example.ui.theme.EmeraldPrimary
 
 @Composable
 fun AuthLandingScreen(
+    onBrowseAds: () -> Unit,
     onRegister: () -> Unit,
     onLogin: () -> Unit
 ) {
@@ -53,39 +56,71 @@ fun AuthLandingScreen(
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "يرجى تسجيل الدخول أو إنشاء حساب جديد للمتابعة",
+            text = "سوق بيع وشراء الأشياء المستعملة عبر 69 ولاية جزائرية",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 14.sp,
             textAlign = TextAlign.Center
         )
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(30.dp))
+
+        // زر تصفح الإعلانات دون الحاجة للتسجيل
         Button(
-            onClick = onLogin,
+            onClick = onBrowseAds,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(54.dp),
+                .height(56.dp)
+                .testTag("browse_ads_button"),
             colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary),
             shape = RoundedCornerShape(16.dp)
         ) {
             Icon(
-                imageVector = Icons.Default.Login,
+                imageVector = Icons.Default.GridView,
                 contentDescription = null,
                 tint = Color.White
             )
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(10.dp))
             Text(
-                text = "تسجيل الدخول",
-                fontSize = 16.sp,
+                text = "تصفح الإعلانات (دون الحاجة للتسجيل)",
+                fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.White
             )
         }
+
         Spacer(modifier = Modifier.height(14.dp))
+
+        Button(
+            onClick = onLogin,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp)
+                .testTag("login_button"),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+            ),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Login,
+                contentDescription = null
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "تسجيل الدخول برقم الهاتف",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
         OutlinedButton(
             onClick = onRegister,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(54.dp),
+                .height(52.dp)
+                .testTag("register_button"),
             shape = RoundedCornerShape(16.dp)
         ) {
             Icon(
@@ -95,12 +130,13 @@ fun AuthLandingScreen(
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-                text = "إنشاء حساب جديد",
-                fontSize = 16.sp,
+                text = "إنشاء حساب جديد برقم الهاتف",
+                fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
                 color = EmeraldPrimary
             )
         }
+
         Spacer(modifier = Modifier.height(24.dp))
         Text(
             text = "سوق إلكتروني موثوق للتجارة الآمنة عبر 69 ولاية",

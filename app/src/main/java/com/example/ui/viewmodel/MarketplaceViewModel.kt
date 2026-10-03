@@ -1133,7 +1133,7 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
         }
     }
 
-    private fun emitMessage(msg: String) {
+    fun emitMessage(msg: String) {
         viewModelScope.launch {
             _uiEvent.emit(msg)
         }
