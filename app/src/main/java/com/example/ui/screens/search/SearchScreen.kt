@@ -19,7 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
-import com.example.data.models.CategoriesData
+import com.example.data.model.CategoriesData
 import com.example.ui.components.formatDzd
 import com.example.ui.components.formatTimeAgo
 import com.example.ui.theme.EmeraldPrimary

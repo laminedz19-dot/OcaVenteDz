@@ -10,10 +10,6 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
-import java.io.IOException
-import java.net.SocketTimeoutException
-import java.net.UnknownHostException
-import java.util.concurrent.TimeUnit
 
 data class AuthUser(
     val uid: String,
@@ -24,89 +20,89 @@ data class AuthUser(
 
 class AuthRepository {
     companion object {
-        private const val TAG = "SupabaseAdminAuth"
-        private val JSON = "application/json; charset=utf-8".toMediaType()
+        private const val TAG = "SupabaseAdminAuthRepository"
     }
 
-    private val http = OkHttpClient.Builder()
-        .connectTimeout(20, TimeUnit.SECONDS)
-        .readTimeout(20, TimeUnit.SECONDS)
-        .writeTimeout(20, TimeUnit.SECONDS)
-        .build()
+    private val http = OkHttpClient()
 
-    private fun request(path: String, body: JSONObject? = null, method: String = "POST", token: String? = null): Request {
+    private fun request(path: String, body: JSONObject? = null): Request {
         val builder = Request.Builder()
             .url("${BuildConfig.SUPABASE_URL}/auth/v1/$path")
             .addHeader("apikey", BuildConfig.SUPABASE_ANON_KEY)
             .addHeader("Content-Type", "application/json")
-        if (!token.isNullOrBlank()) {
-            builder.addHeader("Authorization", "Bearer $token")
-        }
         if (body != null) {
-            builder.method(method, body.toString().toRequestBody(JSON))
-        } else {
-            builder.method(method, null)
+            builder.post(body.toString().toRequestBody("application/json".toMediaType()))
         }
         return builder.build()
     }
 
     val currentUserId: String?
-        get() = SupabaseSessionStore.userId() ?: SupabaseSessionStore.accessToken()?.let { SupabaseSessionStore.decodeUserId(it) }
+        get() = SupabaseSessionStore.userId()
 
     val currentUser: AuthUser?
         get() = currentUserId?.let { AuthUser(it, null, null, null) }
 
-    suspend fun registerWithPhone(phone: String, password: String, displayName: String): Result<AuthUser> = withContext(Dispatchers.IO) {
-        try {
-            val body = JSONObject().apply {
-                put("phone", phone)
-                put("password", password)
-                put("data", JSONObject().put("name", displayName.trim()))
-            }
-            http.newCall(request("signup", body)).execute().use { resp ->
-                val text = resp.body?.string().orEmpty()
-                if (!resp.isSuccessful) return@withContext Result.failure(Exception(parseAuthErrorMessage(text, resp.code)))
-                val json = JSONObject(text)
-                val userObj = json.optJSONObject("user") ?: json
-                val uid = userObj.optString("id").takeIf { it.isNotBlank() }
-                    ?: return@withContext Result.failure(Exception("لم يُرجع خادم المصادقة معرّف مستخدم صالح."))
-                val accessToken = json.optString("access_token")
-                if (accessToken.isBlank()) return@withContext Result.failure(Exception("التسجيل الهاتفي يحتاج تعطيل Phone Confirmations في Supabase حتى لا يُطلب OTP."))
-                SupabaseSessionStore.save(accessToken, json.optString("refresh_token"), json.optLong("expires_in", 3600L), uid)
-                Result.success(AuthUser(uid, userObj.optString("email").takeIf { it.isNotBlank() }, displayName.trim(), userObj.optString("phone").takeIf { it.isNotBlank() } ?: phone))
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Phone registration failure: ${e.message}")
-            Result.failure(mapNetworkException(e))
+    suspend fun registerWithEmail(email: String, password: String): Result<AuthUser?> =
+        authenticate("signup", email, password)
+
+    suspend fun loginWithEmail(email: String, password: String): Result<AuthUser?> =
+        authenticate("token?grant_type=password", email, password)
+
+    suspend fun loginAdminWithClaims(email: String, password: String): Result<AuthUser> {
+        val result = authenticate("token?grant_type=password", email, password)
+        val user = result.getOrNull()
+            ?: return Result.failure(result.exceptionOrNull() ?: Exception("تعذر تسجيل الدخول كمدير"))
+        return if (checkIsCurrentAdmin()) {
+            Result.success(user)
+        } else {
+            signOut()
+            Result.failure(SecurityException("هذا الحساب ليس لديه صلاحيات إدارة (Admin)."))
         }
     }
 
-    suspend fun loginWithPhone(phone: String, password: String): Result<AuthUser> = withContext(Dispatchers.IO) {
+    private suspend fun authenticate(
+        path: String,
+        email: String,
+        password: String
+    ): Result<AuthUser?> = withContext(Dispatchers.IO) {
         try {
-            val body = JSONObject().put("phone", phone).put("password", password)
-            http.newCall(request("token?grant_type=password", body)).execute().use { resp ->
-                val text = resp.body?.string().orEmpty()
-                if (!resp.isSuccessful) return@withContext Result.failure(Exception(parseAuthErrorMessage(text, resp.code)))
-                val json = JSONObject(text)
-                val userObj = json.optJSONObject("user") ?: json
-                val accessToken = json.optString("access_token")
-                val uid = userObj.optString("id").takeIf { it.isNotBlank() }
-                    ?: SupabaseSessionStore.decodeUserId(accessToken)
-                    ?: return@withContext Result.failure(Exception("تعذر استخراج معرّف الحساب من بيانات الدخول."))
-                if (accessToken.isNotBlank()) SupabaseSessionStore.save(accessToken, json.optString("refresh_token"), json.optLong("expires_in", 3600L), uid)
-                Result.success(AuthUser(uid, userObj.optString("email").takeIf { it.isNotBlank() }, userObj.optJSONObject("user_metadata")?.optString("name"), userObj.optString("phone").takeIf { it.isNotBlank() } ?: phone))
+            val response = http.newCall(
+                request(
+                    path,
+                    JSONObject()
+                        .put("email", email.trim())
+                        .put("password", password)
+                )
+            ).execute()
+            val text = response.body?.string().orEmpty()
+            if (!response.isSuccessful) {
+                val json = runCatching { JSONObject(text) }.getOrNull() ?: JSONObject()
+                return@withContext Result.failure(Exception(toArabicMessage(json)))
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "Phone login failure: ${e.message}")
-            Result.failure(mapNetworkException(e))
+            val json = JSONObject(text)
+            val user = json.optJSONObject("user") ?: json
+            val access = json.optString("access_token")
+            val uid = user.optString("id")
+            if (access.isNotBlank()) {
+                SupabaseSessionStore.save(
+                    access = access,
+                    refresh = json.optString("refresh_token"),
+                    userId = uid,
+                    expiresInSeconds = json.optLong("expires_in", 3600L)
+                )
+            }
+            Result.success(
+                AuthUser(
+                    uid = uid,
+                    email = user.optString("email"),
+                    displayName = user.optJSONObject("user_metadata")?.optString("name"),
+                    phoneNumber = user.optString("phone")
+                )
+            )
+        } catch (error: Exception) {
+            Log.e(TAG, "Auth error", error)
+            Result.failure(Exception("تعذر الاتصال بخدمة المصادقة", error))
         }
-    }
-
-    suspend fun loginAdminWithPhone(phone: String, password: String): Result<AuthUser> {
-        val result = loginWithPhone(phone, password)
-        val user = result.getOrNull() ?: return Result.failure(result.exceptionOrNull() ?: Exception("تعذر تسجيل الدخول"))
-        return if (checkIsCurrentAdmin()) Result.success(user)
-        else { signOut(); Result.failure(SecurityException("هذا الحساب ليس مديرًا")) }
     }
 
     suspend fun restoreSession(): Result<AuthUser?> = withContext(Dispatchers.IO) {
@@ -114,170 +110,154 @@ class AuthRepository {
             val access = SupabaseSessionStore.accessToken()
             val refresh = SupabaseSessionStore.refreshToken()
             if (access.isNullOrBlank()) return@withContext Result.success(null)
-
-            if (!SupabaseSessionStore.isExpired()) {
-                val current = fetchCurrentUser(access)
-                if (current.isSuccess) {
-                    val uid = current.getOrNull()?.uid.orEmpty()
-                    if (verifyAdminRole(uid, access)) {
-                        return@withContext current
-                    }
-                }
-            }
-
+            if (!SupabaseSessionStore.isExpired()) return@withContext fetchCurrentUser(access)
             if (refresh.isNullOrBlank()) {
                 SupabaseSessionStore.clear()
                 return@withContext Result.success(null)
             }
-
-            val body = JSONObject().put("refresh_token", refresh)
-            val response = http.newCall(request("token?grant_type=refresh_token", body)).execute()
-            response.use { resp ->
-                val text = resp.body?.string().orEmpty()
-                if (!resp.isSuccessful) {
-                    if (resp.code in 400..403) {
-                        SupabaseSessionStore.clear()
-                        return@withContext Result.failure(Exception("انتهت جلسة المشرف. يرجى تسجيل الدخول من جديد."))
-                    }
-                    return@withContext Result.failure(Exception("تعذر تحديث جلسة المشرف (${resp.code})"))
-                }
-                val json = JSONObject(text)
-                val newAccess = json.optString("access_token")
-                val newRefresh = json.optString("refresh_token").ifBlank { refresh }
-                val expiresIn = json.optLong("expires_in", 3600L)
-                if (newAccess.isBlank()) {
-                    SupabaseSessionStore.clear()
-                    return@withContext Result.success(null)
-                }
-                val userObj = json.optJSONObject("user")
-                val uid = userObj?.optString("id") ?: SupabaseSessionStore.decodeUserId(newAccess)
-                SupabaseSessionStore.save(newAccess, newRefresh, expiresIn, uid)
-                val current = fetchCurrentUser(newAccess)
-                if (current.isSuccess && uid != null && verifyAdminRole(uid, newAccess)) {
-                    current
-                } else {
-                    signOut()
-                    Result.failure(SecurityException("فقد الحساب صلاحيات الإشراف الإداري."))
-                }
+            val response = http.newCall(request("token?grant_type=refresh_token", JSONObject().put("refresh_token", refresh))).execute()
+            val text = response.body?.string().orEmpty()
+            if (!response.isSuccessful) {
+                SupabaseSessionStore.clear()
+                return@withContext Result.failure(Exception("انتهت جلسة المدير، يرجى تسجيل الدخول من جديد"))
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "Restore admin session error: ${e.message}")
-            Result.failure(mapNetworkException(e))
+            val json = JSONObject(text)
+            val newAccess = json.optString("access_token")
+            if (newAccess.isBlank()) {
+                SupabaseSessionStore.clear()
+                return@withContext Result.success(null)
+            }
+            val user = json.optJSONObject("user")
+            val uid = user?.optString("id") ?: SupabaseSessionStore.userId()
+            SupabaseSessionStore.save(
+                access = newAccess,
+                refresh = json.optString("refresh_token").ifBlank { refresh },
+                userId = uid,
+                expiresInSeconds = json.optLong("expires_in", 3600L)
+            )
+            fetchCurrentUser(newAccess)
+        } catch (error: Exception) {
+            Log.e(TAG, "Restore admin session error", error)
+            SupabaseSessionStore.clear()
+            Result.failure(Exception("تعذر استعادة جلسة المدير", error))
         }
     }
 
     private fun fetchCurrentUser(access: String): Result<AuthUser?> {
-        return try {
-            val req = Request.Builder()
+        val response = http.newCall(
+            Request.Builder()
                 .url("${BuildConfig.SUPABASE_URL}/auth/v1/user")
                 .get()
                 .addHeader("apikey", BuildConfig.SUPABASE_ANON_KEY)
                 .addHeader("Authorization", "Bearer $access")
                 .build()
-            http.newCall(req).execute().use { resp ->
-                val text = resp.body?.string().orEmpty()
-                if (!resp.isSuccessful) {
-                    return Result.failure(Exception("جلسة المشرف غير صالحة (${resp.code})"))
-                }
-                val userObj = JSONObject(text)
-                val uid = userObj.optString("id")
-                if (uid.isBlank()) return Result.failure(Exception("معرّف المشرف مفقود."))
-                val meta = userObj.optJSONObject("user_metadata")
-                Result.success(
-                    AuthUser(
-                        uid = uid,
-                        email = userObj.optString("email").takeIf { it.isNotBlank() },
-                        displayName = meta?.optString("name")?.takeIf { it.isNotBlank() },
-                        phoneNumber = userObj.optString("phone").takeIf { it.isNotBlank() }
-                    )
-                )
-            }
-        } catch (e: Exception) {
-            Result.failure(mapNetworkException(e))
-        }
+        ).execute()
+        val text = response.body?.string().orEmpty()
+        if (!response.isSuccessful) return Result.failure(Exception("جلسة المدير غير صالحة"))
+        val user = JSONObject(text)
+        return Result.success(
+            AuthUser(
+                uid = user.optString("id"),
+                email = user.optString("email").takeIf { it.isNotBlank() },
+                displayName = user.optJSONObject("user_metadata")?.optString("name"),
+                phoneNumber = user.optString("phone").takeIf { it.isNotBlank() }
+            )
+        )
     }
 
     suspend fun checkIsCurrentAdmin(): Boolean = withContext(Dispatchers.IO) {
-        val uid = currentUserId ?: return@withContext false
         val token = SupabaseSessionStore.accessToken() ?: return@withContext false
-        verifyAdminRole(uid, token)
-    }
-
-    private fun verifyAdminRole(uid: String, token: String): Boolean {
-        return try {
-            val req = Request.Builder()
-                .url("${BuildConfig.SUPABASE_URL}/rest/v1/user_roles?user_id=eq.$uid&role=eq.admin&select=role&limit=1")
+        try {
+            val rpcReq = Request.Builder()
+                .url("${BuildConfig.SUPABASE_URL}/rest/v1/rpc/is_admin")
+                .post("{}".toRequestBody("application/json".toMediaType()))
                 .addHeader("apikey", BuildConfig.SUPABASE_ANON_KEY)
                 .addHeader("Authorization", "Bearer $token")
                 .build()
-            http.newCall(req).execute().use { resp ->
-                val text = resp.body?.string().orEmpty()
-                resp.isSuccessful && text.trim().startsWith("[") && text.contains("admin")
+            val rpcResponse = http.newCall(rpcReq).execute()
+            val rpcBody = rpcResponse.body?.string().orEmpty().trim()
+            if (rpcResponse.isSuccessful && rpcBody.equals("true", ignoreCase = true)) {
+                return@withContext true
             }
-        } catch (_: Exception) {
+
+            val uid = currentUserId ?: return@withContext false
+            val tableReq = Request.Builder()
+                .url("${BuildConfig.SUPABASE_URL}/rest/v1/user_roles?user_id=eq.$uid&role=eq.admin&select=user_id&limit=1")
+                .addHeader("apikey", BuildConfig.SUPABASE_ANON_KEY)
+                .addHeader("Authorization", "Bearer $token")
+                .build()
+            val tableResponse = http.newCall(tableReq).execute()
+            val tableBody = tableResponse.body?.string().orEmpty().trim()
+            tableResponse.isSuccessful && tableBody.startsWith("[") && tableBody.contains(uid)
+        } catch (e: Exception) {
+            Log.e(TAG, "checkIsCurrentAdmin error", e)
             false
         }
     }
 
-    suspend fun changeCurrentPassword(currentPassword: String, newPassword: String): Result<Unit> = withContext(Dispatchers.IO) {
-        val access = SupabaseSessionStore.accessToken()
-            ?: return@withContext Result.failure(IllegalStateException("جلسة المشرف غير صالحة."))
-        val phone = fetchCurrentUser(access).getOrNull()?.phoneNumber
-            ?: return@withContext Result.failure(Exception("تعذر معرفة رقم هاتف المشرف الحالي."))
-        val verified = loginWithPhone(phone, currentPassword)
-        if (verified.isFailure) return@withContext Result.failure(Exception("كلمة المرور الحالية غير صحيحة."))
-        val token = SupabaseSessionStore.accessToken() ?: access
-        val updateReq = Request.Builder().url("${BuildConfig.SUPABASE_URL}/auth/v1/user")
-            .put(JSONObject().put("password", newPassword).toString().toRequestBody(JSON))
-            .addHeader("apikey", BuildConfig.SUPABASE_ANON_KEY).addHeader("Authorization", "Bearer $token").build()
-        http.newCall(updateReq).execute().use { if (it.isSuccessful) Result.success(Unit) else Result.failure(Exception("تعذر تغيير كلمة المرور.")) }
-    }
-    fun signOut() {
+    suspend fun sendPasswordReset(email: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            val token = SupabaseSessionStore.accessToken()
-            if (!token.isNullOrBlank()) {
-                http.newCall(
-                    Request.Builder()
-                        .url("${BuildConfig.SUPABASE_URL}/auth/v1/logout")
-                        .post("{}".toRequestBody(JSON))
-                        .addHeader("apikey", BuildConfig.SUPABASE_ANON_KEY)
-                        .addHeader("Authorization", "Bearer $token")
-                        .build()
-                ).enqueue(object : okhttp3.Callback {
-                    override fun onFailure(call: okhttp3.Call, e: IOException) {}
-                    override fun onResponse(call: okhttp3.Call, response: okhttp3.Response) { response.close() }
-                })
+            val response = http.newCall(
+                request("recover", JSONObject().put("email", email.trim()))
+            ).execute()
+            if (response.isSuccessful) Result.success(Unit)
+            else Result.failure(Exception("تعذر إرسال رابط استعادة كلمة المرور"))
+        } catch (error: Exception) {
+            Result.failure(error)
+        }
+    }
+
+    suspend fun changeCurrentPassword(currentPassword: String, newPassword: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val email = fetchCurrentUser(SupabaseSessionStore.accessToken().orEmpty()).getOrNull()?.email
+                ?: return@withContext Result.failure(Exception("تعذر تحديد بريد حساب المشرف الحالي"))
+            val verification = authenticate("token?grant_type=password", email, currentPassword)
+            if (verification.isFailure) {
+                return@withContext Result.failure(Exception("كلمة المرور الحالية غير صحيحة"))
             }
-        } catch (_: Exception) {}
+            val access = SupabaseSessionStore.accessToken()
+                ?: return@withContext Result.failure(Exception("انتهت جلسة المشرف، يرجى تسجيل الدخول من جديد"))
+            val response = http.newCall(
+                Request.Builder()
+                    .url("${BuildConfig.SUPABASE_URL}/auth/v1/user")
+                    .put(JSONObject().put("password", newPassword).toString().toRequestBody("application/json".toMediaType()))
+                    .addHeader("apikey", BuildConfig.SUPABASE_ANON_KEY)
+                    .addHeader("Authorization", "Bearer $access")
+                    .addHeader("Content-Type", "application/json")
+                    .build()
+            ).execute()
+            if (response.isSuccessful) Result.success(Unit)
+            else Result.failure(Exception("تعذر تحديث كلمة المرور في الخدمة السحابية"))
+        } catch (error: Exception) {
+            Log.e(TAG, "Change password error", error)
+            Result.failure(Exception("تعذر الاتصال بخدمة المصادقة", error))
+        }
+    }
+
+    fun signOut() {
         SupabaseSessionStore.clear()
     }
 
-    private fun parseAuthErrorMessage(bodyText: String, statusCode: Int): String {
-        val json = runCatching { JSONObject(bodyText) }.getOrNull()
-        val code = json?.optString("error_code").orEmpty()
-        val rawMsg = json?.optString("msg")?.ifBlank { json.optString("message") }?.ifBlank { json.optString("error_description") }.orEmpty()
+    private fun toArabicMessage(json: JSONObject): String {
+        val code = json.optString("error_code").ifBlank { json.optString("code") }
+        val desc = json.optString("error_description")
+            .ifBlank { json.optString("message") }
+            .ifBlank { json.optString("error") }
+            .ifBlank { json.optString("msg") }
 
         return when {
-            code == "invalid_credentials" || rawMsg.contains("invalid login", ignoreCase = true) ->
-                "بيانات دخول المشرف غير صحيحة."
-            rawMsg.contains("phone signups are disabled", ignoreCase = true) || rawMsg.contains("phone provider is disabled", ignoreCase = true) ->
-                "تسجيل الحساب برقم الهاتف غير مفعّل في إعدادات Supabase. فعّل Phone Provider ثم أعد المحاولة."
-            statusCode == 429 ->
-                "تم تجاوز عدد المحاولات المسموح به. يرجى الانتظار ثم المحاولة مجدداً."
-            statusCode in 500..599 ->
-                "خادم المصادقة غير متاح حالياً."
-            rawMsg.isNotBlank() -> rawMsg
-            else -> "فشلت عملية المصادقة (رمز الخطأ: $statusCode)."
+            code == "invalid_credentials" || desc.contains("invalid login credentials", ignoreCase = true) ->
+                "بيانات الدخول غير صحيحة. يرجى التأكد من البريد أو كلمة المرور."
+            code == "email_exists" || code == "user_already_exists" || desc.contains("already registered", ignoreCase = true) ->
+                "هذا الحساب مسجل مسبقاً."
+            code == "email_not_confirmed" || desc.contains("Email not confirmed", ignoreCase = true) ->
+                "يرجى تأكيد الحساب عبر البريد الإلكتروني للمتابعة."
+            code == "weak_password" || desc.contains("Password should be", ignoreCase = true) ->
+                "كلمة المرور يجب أن تتكون من 6 أحرف أو أرقام على الأقل."
+            code == "over_request_rate_limit" || desc.contains("rate limit", ignoreCase = true) ->
+                "تم تجاوز عدد المحاولات المسموح بها مؤقتاً، يرجى الانتظار دقيقة والمحاولة مجدداً."
+            desc.isNotBlank() -> desc
+            else -> "تعذر إتمام عملية المصادقة مع الخادم."
         }
-    }
-
-    private fun mapNetworkException(e: Exception): Exception {
-        val msg = when (e) {
-            is SocketTimeoutException -> "انتهت مهلة الاتصال بخادم المصادقة."
-            is UnknownHostException -> "تعذر الوصول إلى خادم المصادقة."
-            is IOException -> "حدث خطأ في الاتصال بالشبكة."
-            else -> e.message ?: "حدث خطأ أثناء المصادقة."
-        }
-        return Exception(msg, e)
     }
 }

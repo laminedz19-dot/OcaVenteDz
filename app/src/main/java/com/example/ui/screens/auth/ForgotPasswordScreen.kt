@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
 package com.example.ui.screens.auth
 
 import androidx.compose.foundation.layout.Arrangement
@@ -11,11 +13,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Login
-import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.LockReset
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -45,22 +44,20 @@ import com.example.ui.viewmodel.MarketplaceViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LoginScreen(
+fun ForgotPasswordScreen(
     viewModel: MarketplaceViewModel,
     onBack: () -> Unit,
-    onLoggedIn: () -> Unit,
-    onRegister: () -> Unit,
-    onForgotPassword: () -> Unit
+    onLogin: () -> Unit
 ) {
     var identifier by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
     var isSubmitting by remember { mutableStateOf(false) }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var feedback by remember { mutableStateOf<String?>(null) }
+    var isError by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("تسجيل الدخول", fontWeight = FontWeight.Bold) },
+                title = { Text("استعادة كلمة المرور", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "رجوع")
@@ -80,18 +77,19 @@ fun LoginScreen(
         ) {
             Spacer(modifier = Modifier.height(30.dp))
             Icon(
-                imageVector = Icons.Default.Login,
+                imageVector = Icons.Default.LockReset,
                 contentDescription = null,
                 tint = EmeraldPrimary,
                 modifier = Modifier.height(52.dp)
             )
             Text(
-                text = "مرحبًا بعودتك",
+                text = "هل نسيت كلمة المرور؟",
                 style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
             )
             Text(
-                text = "أدخل رقم هاتفك وكلمة المرور لتسجيل الدخول إلى حسابك.",
+                text = "أدخل رقم الهاتف المرتبط بحسابك لبدء الاستعادة.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
                 fontSize = 14.sp
@@ -100,54 +98,39 @@ fun LoginScreen(
 
             OutlinedTextField(
                 value = identifier,
-                onValueChange = { identifier = it; errorMessage = null },
+                onValueChange = { identifier = it; feedback = null },
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("رقم الهاتف") },
                 placeholder = { Text("05 55 12 34 56") },
-                leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                 singleLine = true,
                 enabled = !isSubmitting
             )
 
-            OutlinedTextField(
-                value = password,
-                onValueChange = { password = it; errorMessage = null },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("كلمة المرور") },
-                leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                singleLine = true,
-                enabled = !isSubmitting
-            )
-
-            errorMessage?.let {
-                Text(it, color = MaterialTheme.colorScheme.error, fontSize = 13.sp, textAlign = TextAlign.Center)
+            feedback?.let {
+                Text(
+                    text = it,
+                    color = if (isError) MaterialTheme.colorScheme.error else EmeraldPrimary,
+                    fontSize = 13.sp,
+                    textAlign = TextAlign.Center
+                )
             }
 
             Button(
                 onClick = {
-                    if (identifier.isBlank()) {
-                        errorMessage = "يرجى إدخال رقم الهاتف"
-                        return@Button
-                    }
-                    if (password.isBlank()) {
-                        errorMessage = "يرجى إدخال كلمة المرور"
-                        return@Button
-                    }
                     isSubmitting = true
-                    errorMessage = null
-                    viewModel.loginUser(
+                    feedback = null
+                    viewModel.requestPasswordReset(
                         identifier = identifier,
-                        password = password,
                         onSuccess = {
                             isSubmitting = false
-                            onLoggedIn()
+                            isError = false
+                            feedback = it
                         },
                         onError = {
                             isSubmitting = false
-                            errorMessage = it
+                            isError = true
+                            feedback = it
                         }
                     )
                 },
@@ -160,17 +143,20 @@ fun LoginScreen(
                 if (isSubmitting) {
                     CircularProgressIndicator(color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.height(22.dp))
                 } else {
-                    Text("تسجيل الدخول", fontWeight = FontWeight.Bold)
+                    Text("متابعة الاستعادة", fontWeight = FontWeight.Bold)
                 }
             }
 
-            TextButton(onClick = onRegister, enabled = !isSubmitting) {
-                Text("ليس لديك حساب؟ إنشاء حساب جديد")
+            TextButton(onClick = onLogin, enabled = !isSubmitting) {
+                Text("العودة إلى تسجيل الدخول")
             }
-            TextButton(onClick = onForgotPassword, enabled = !isSubmitting) {
-                Text("نسيت كلمة المرور؟ استعادتها")
-            }
-            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "المصادقة السحابية غير مفعّلة حاليًا. بعد ربط الخدمة السحابية سيتم إرسال رابط استعادة فعلي إلى البريد.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 11.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(bottom = 24.dp)
+            )
         }
     }
 }

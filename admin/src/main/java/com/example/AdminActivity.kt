@@ -26,7 +26,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AdminPanelSettings
-import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Shield
@@ -151,7 +151,7 @@ fun AdminLoginGate(
     viewModel: MarketplaceViewModel,
     onSuccess: () -> Unit
 ) {
-    var phone by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("laminedz.19@gmail.com") }
     var password by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(false) }
@@ -226,17 +226,17 @@ fun AdminLoginGate(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 OutlinedTextField(
-                    value = phone,
+                    value = email,
                     onValueChange = {
-                        phone = it
+                        email = it
                         errorMessage = null
                     },
-                    label = { Text("رقم هاتف المسؤول") },
-                    placeholder = { Text("05 55 12 34 56") },
+                    label = { Text("البريد الإلكتروني للمسؤول") },
+                    placeholder = { Text("laminedz.19@gmail.com") },
                     singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                     leadingIcon = {
-                        Icon(Icons.Default.Phone, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.Email, contentDescription = null, modifier = Modifier.size(18.dp))
                     },
                     modifier = Modifier.fillMaxWidth(),
                     enabled = !isLoading
@@ -277,14 +277,14 @@ fun AdminLoginGate(
 
                 Button(
                     onClick = {
-                        if (phone.isBlank() || password.isBlank()) {
-                            errorMessage = "يرجى ملء رقم الهاتف وكلمة المرور"
+                        if (email.isBlank() || password.isBlank()) {
+                            errorMessage = "يرجى ملء البريد الإلكتروني وكلمة المرور"
                             return@Button
                         }
                         isLoading = true
                         errorMessage = null
                         viewModel.loginAdmin(
-                            phone = phone.trim(),
+                            email = email.trim(),
                             pass = password,
                             onSuccess = {
                                 isLoading = false

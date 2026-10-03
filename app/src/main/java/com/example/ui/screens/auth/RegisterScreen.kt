@@ -14,6 +14,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.HowToReg
 import androidx.compose.material.icons.filled.LocationCity
 import androidx.compose.material.icons.filled.Lock
@@ -46,7 +47,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.data.models.AlgeriaWilayas
+import com.example.data.model.AlgeriaWilayas
 import com.example.ui.theme.EmeraldPrimary
 import com.example.ui.viewmodel.MarketplaceViewModel
 
@@ -299,6 +300,7 @@ fun RegisterScreen(
                     viewModel.registerUser(
                         name = name,
                         phone = phone,
+                        email = "",
                         wilaya = wilaya,
                         commune = commune,
                         password = password,

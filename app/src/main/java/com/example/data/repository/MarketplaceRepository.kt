@@ -86,90 +86,63 @@ class MarketplaceRepository(
         packageType: String, // "STANDARD", "FEATURED", "URGENT"
         paymentMethod: String // "WALLET", "EDAHABIA", "CIB", "BARIDIMOB"
     ): Result<PaymentOrderEntity> {
-        val settings = db.settingsDao().getSettingsDirect() ?: PlatformSettingsEntity()
-        val fee = when (packageType) {
-            "FEATURED" -> settings.featuredAdFeeDzd
-            "URGENT" -> settings.urgentAdFeeDzd
-            else -> settings.standardAdFeeDzd
-        }
-
         val now = System.currentTimeMillis()
-        val paymentId = "PAY_" + UUID.randomUUID().toString().take(8).uppercase()
-
-        if (paymentMethod != "WALLET") {
-            // E-Payment processing for Edahabia / CIB / BaridiMob gateway
-            val order = PaymentOrderEntity(
-                paymentId = paymentId,
-                userId = userId,
-                listingId = listingId,
-                amount = fee,
-                currency = "DZD",
-                status = "SUCCESS",
-                provider = paymentMethod,
-                transactionReference = "EPAY_" + UUID.randomUUID().toString().take(10).uppercase(),
-                createdAt = now,
-                completedAt = now
-            )
-            return db.withTransaction {
-                val listing = db.listingDao().getListingByIdDirect(listingId)
-                    ?: return@withTransaction Result.failure(Exception("الإعلان غير موجود."))
-                if (listing.userId != userId) {
-                    return@withTransaction Result.failure(Exception("لا تملك هذا الإعلان."))
-                }
-                db.paymentDao().insertPayment(order)
-                db.listingDao().insertListing(listing.copy(
-                    status = if (settings.autoPublishAfterPayment) "PUBLISHED" else "UNDER_REVIEW",
-                    isPaid = true,
-                    publishingFeeDzd = fee,
-                    packageType = packageType,
-                    isFeatured = packageType != "STANDARD",
-                    isUrgent = packageType == "URGENT"
-                ))
-                Result.success(order)
-            }
+        val rpcRes = supabaseClient.rpcPayAndSubmitListing(listingId, packageType, paymentMethod)
+        if (rpcRes.isFailure) {
+            val err = rpcRes.exceptionOrNull()
+            return Result.failure(Exception(err?.message ?: "فشلت عملية الدفع وتحديث الإعلان في الخادم السحابي.", err))
         }
+
+        val json = rpcRes.getOrNull()
+        val paymentId = json?.optString("payment_id")?.takeIf { it.isNotBlank() }
+            ?: ("PAY_" + UUID.randomUUID().toString().take(8).uppercase())
+        val newStatus = json?.optString("status")?.takeIf { it.isNotBlank() } ?: "PUBLISHED"
+        val fee = json?.optInt("amount", 0)?.takeIf { it > 0 } ?: when (packageType) {
+            "FEATURED" -> 600
+            "URGENT" -> 1000
+            else -> 400
+        }
+
+        val order = PaymentOrderEntity(
+            paymentId = paymentId,
+            userId = userId,
+            listingId = listingId,
+            amount = fee,
+            currency = "DZD",
+            status = "SUCCESS",
+            provider = paymentMethod,
+            transactionReference = paymentId,
+            createdAt = now,
+            completedAt = now
+        )
+
         return db.withTransaction {
             val listing = db.listingDao().getListingByIdDirect(listingId)
                 ?: return@withTransaction Result.failure(Exception("الإعلان غير موجود."))
-            if (listing.userId != userId) {
-                return@withTransaction Result.failure(Exception("لا تملك هذا الإعلان."))
-            }
-            if (db.walletDao().debitIfSufficient(userId, fee, now) != 1) {
-                val balance = db.walletDao().getWalletDirect(userId)?.balanceDzd ?: 0
-                return@withTransaction Result.failure(Exception("رصيد المحفظة غير كافٍ. الرصيد الحالي: $balance دج والمطلوب: $fee دج"))
-            }
-            db.walletDao().insertTransaction(
-                WalletTransactionEntity(
-                    id = "TX_" + UUID.randomUUID().toString().take(8),
-                    userId = userId,
-                    type = "AD_PAYMENT",
-                    amount = -fee,
-                    description = "دفع رسوم نشر إعلان ($packageType)",
-                    referenceId = paymentId,
-                    timestamp = now
-                )
-            )
-            val order = PaymentOrderEntity(
-                paymentId = paymentId,
-                userId = userId,
-                listingId = listingId,
-                amount = fee,
-                currency = "DZD",
-                status = "SUCCESS",
-                provider = "WALLET",
-                transactionReference = paymentId,
-                createdAt = now,
-                completedAt = now
-            )
+
             db.paymentDao().insertPayment(order)
             db.listingDao().insertListing(listing.copy(
-                status = if (settings.autoPublishAfterPayment) "PUBLISHED" else "UNDER_REVIEW",
+                status = newStatus,
                 isPaid = true,
                 publishingFeeDzd = fee,
                 packageType = packageType,
                 isFeatured = packageType != "STANDARD",
                 isUrgent = packageType == "URGENT"
             ))
+            if (paymentMethod == "WALLET") {
+                db.walletDao().debitIfSufficient(userId, fee, now)
+                db.walletDao().insertTransaction(
+                    WalletTransactionEntity(
+                        id = "TX_" + UUID.randomUUID().toString().take(8),
+                        userId = userId,
+                        type = "AD_PAYMENT",
+                        amount = -fee,
+                        description = "دفع رسوم نشر إعلان ($packageType)",
+                        referenceId = paymentId,
+                        timestamp = now
+                    )
+                )
+            }
             Result.success(order)
         }
     }
@@ -188,25 +161,13 @@ class MarketplaceRepository(
 
     /** Submits a top-up request using Supabase and caches it in Room. */
     suspend fun submitTopUpRequest(
-        context: Context,
-        amount: Int,
-        provider: String,
-        reference: String,
-        receiptImageUriString: String
+        context: Context, userId: String = "", amount: Int, provider: String,
+        reference: String, receiptImageUriString: String
     ): Result<String> = withContext(Dispatchers.IO) {
-        if (amount < 200) {
-            return@withContext Result.failure(IllegalArgumentException("الحد الأدنى لشحن الرصيد هو 200 دج."))
-        }
-        if (provider !in setOf("BARIDIMOB", "CCP", "EDAHABIA", "CIB")) {
-            return@withContext Result.failure(IllegalArgumentException("مزود الدفع المحدد غير مدعوم."))
-        }
-        if (reference.isBlank() && receiptImageUriString.isBlank()) {
-            return@withContext Result.failure(IllegalArgumentException("يجب إرفاق صورة الوصل أو رقم المرجع."))
-        }
-        val uid = authService.currentUserId
-        if (uid.isNullOrBlank() || uid == "deleted") {
-            return@withContext Result.failure(IllegalStateException("جلسة تسجيل الدخول غير صالحة. يرجى تسجيل الدخول من جديد."))
-        }
+        if (amount < 200) return@withContext Result.failure(IllegalArgumentException("الحد الأدنى لشحن الرصيد هو 200 دج."))
+        if (provider !in setOf("BARIDIMOB", "CCP", "EDAHABIA", "CIB")) return@withContext Result.failure(IllegalArgumentException("مزود الدفع المحدد غير مدعوم."))
+        if (reference.isBlank() && receiptImageUriString.isBlank()) return@withContext Result.failure(IllegalArgumentException("يجب إرفاق صورة الوصل أو رقم المرجع."))
+        val uid = authService.currentUserId ?: userId.takeIf { it.isNotBlank() } ?: return@withContext Result.failure(IllegalStateException("يجب تسجيل الدخول أولاً."))
         val localUser = db.userDao().getUserByIdDirect(uid)
         val storedReceipt = if (receiptImageUriString.isNotBlank()) {
             val uploadResult = supabaseClient.uploadReceiptImage(
@@ -217,28 +178,21 @@ class MarketplaceRepository(
             )
             uploadResult.getOrElse { error ->
                 return@withContext Result.failure(
-                    Exception(error.message ?: "تعذر رفع صورة الوصل إلى الخادم السحابي.", error)
+                    Exception(error.message ?: "تعذر رفع صورة الوصل إلى الخادم.", error)
                 )
             }
         } else ""
         val request = TopUpRequestEntity(
-            id = UUID.randomUUID().toString(),
-            userId = uid,
-            userName = localUser?.name ?: "مستخدم OcaVenteDz",
-            userPhone = localUser?.phone ?: "",
-            amountDzd = amount,
-            provider = provider,
-            reference = reference.trim(),
-            receiptImageUri = storedReceipt.ifBlank { receiptImageUriString },
-            status = "PENDING",
-            adminNote = "",
-            createdAt = System.currentTimeMillis(),
-            reviewedAt = 0L
+            id = UUID.randomUUID().toString(), userId = uid,
+            userName = localUser?.name ?: "مستخدم OcaVenteDz", userPhone = localUser?.phone ?: "",
+            amountDzd = amount, provider = provider, reference = reference.trim(),
+            receiptImageUri = storedReceipt.ifBlank { receiptImageUriString }, status = "PENDING",
+            adminNote = "", createdAt = System.currentTimeMillis(), reviewedAt = 0L
         )
         val cloud = try {
             supabaseClient.submitTopUpRequest(request)
         } catch (error: Exception) {
-            Result.failure(Exception("تعذر الاتصال بالخادم السحابي.", error))
+            Result.failure(Exception("تعذر الاتصال بالخادم.", error))
         }
         if (cloud.isFailure) {
             return@withContext Result.failure(
@@ -248,60 +202,49 @@ class MarketplaceRepository(
         db.topUpRequestDao().insertRequest(request)
         Result.success("تم إرسال طلب الشحن بنجاح! ستتم مراجعته واعتماد الرصيد قريباً.")
     }
-
     suspend fun approveTopUpRequest(requestId: String, adminNote: String = "تم التحقق من الوصل بنجاح"): Result<String> {
+        val note = adminNote.ifBlank { "تم التحقق من الوصل بنجاح" }
+        val rpcRes = supabaseClient.rpcApproveTopUp(requestId, note)
+        if (rpcRes.isFailure) {
+            val err = rpcRes.exceptionOrNull()
+            return Result.failure(Exception(err?.message ?: "فشل اعتماد طلب الشحن عبر الخادم السحابي.", err))
+        }
+
         val request = db.topUpRequestDao().getRequestById(requestId)
-            ?: return Result.failure(Exception("طلب الشحن غير موجود."))
-
-        if (request.status == "APPROVED") {
-            return Result.failure(Exception("هذا الطلب تمت الموافقة عليه مسبقاً."))
-        }
-
-        val cloud = supabaseClient.approveTopUpRequest(requestId, adminNote)
-        if (cloud.isFailure) {
-            return Result.failure(cloud.exceptionOrNull() ?: Exception("فشل اعتماد طلب الشحن على الخادم."))
-        }
-
         val now = System.currentTimeMillis()
-        val updated = db.walletDao().creditWallet(request.userId, request.amountDzd, now)
-        if (updated == 0) {
-            db.walletDao().insertOrUpdateWallet(
-                WalletEntity(userId = request.userId, balanceDzd = request.amountDzd, updatedAt = now)
+        if (request != null) {
+            db.walletDao().creditWallet(request.userId, request.amountDzd, now)
+            val tx = WalletTransactionEntity(
+                id = "tx_" + UUID.randomUUID().toString().replace("-", "").take(10),
+                userId = request.userId,
+                type = "TOPUP",
+                amount = request.amountDzd,
+                description = "شحن رصيد - وصل تحويل ${request.provider} (مرجع: ${request.reference.ifBlank { request.id }})",
+                referenceId = request.id,
+                timestamp = now
             )
+            db.walletDao().insertTransaction(tx)
+            db.topUpRequestDao().updateStatus(request.id, "APPROVED", note, now)
         }
 
-        val tx = WalletTransactionEntity(
-            id = "tx_" + UUID.randomUUID().toString().replace("-", "").take(10),
-            userId = request.userId,
-            type = "TOPUP",
-            amount = request.amountDzd,
-            description = "شحن رصيد معتمد - ${request.provider} (مرجع: ${request.reference.ifBlank { request.id }})",
-            referenceId = request.id,
-            timestamp = now
-        )
-        db.walletDao().insertTransaction(tx)
-        db.topUpRequestDao().updateStatus(request.id, "APPROVED", adminNote, now)
-
-        return Result.success("تمت الموافقة بنجاح وشحن ${request.amountDzd} دج إلى محفظة ${request.userName} ✓")
+        return Result.success("تمت الموافقة بنجاح وشحن الرصيد إلى المحفظة عبر الخادم السحابي ✓")
     }
 
     suspend fun rejectTopUpRequest(requestId: String, reason: String): Result<String> {
-        val request = db.topUpRequestDao().getRequestById(requestId)
-            ?: return Result.failure(Exception("طلب الشحن غير موجود."))
-
-        val cloud = supabaseClient.rejectTopUpRequest(requestId, reason)
-        if (cloud.isFailure) {
-            return Result.failure(cloud.exceptionOrNull() ?: Exception("فشل رفض طلب الشحن على الخادم."))
+        val note = reason.ifBlank { "الوصل غير مطابق أو غير واضح" }
+        val rpcRes = supabaseClient.rpcRejectTopUp(requestId, note)
+        if (rpcRes.isFailure) {
+            val err = rpcRes.exceptionOrNull()
+            return Result.failure(Exception(err?.message ?: "فشل رفض طلب الشحن في الخادم السحابي.", err))
         }
 
         val now = System.currentTimeMillis()
-        val note = reason.ifBlank { "الوصل غير مطابق أو غير واضح" }
-        db.topUpRequestDao().updateStatus(request.id, "REJECTED", note, now)
-        return Result.success("تم رفض طلب الشحن.")
+        db.topUpRequestDao().updateStatus(requestId, "REJECTED", note, now)
+        return Result.success("تم رفض طلب الشحن بنجاح.")
     }
 
     suspend fun topUpWallet(userId: String, amount: Int, paymentProvider: String, txReference: String? = null): Result<String> {
-        return Result.failure(Exception("عمليات الشحن المباشر غير متاحة لأسباب أمنية؛ يرجى إرسال طلب شحن مع وصل التحويل للمراجعة والاعتماد."))
+        return Result.failure(Exception("يرجى إرسال وصل التحويل للمراجعة اليدوية عبر شحن المحفظة."))
     }
 
     /** Reads the balance from Supabase, then falls back to Room. */
@@ -321,7 +264,6 @@ class MarketplaceRepository(
     suspend fun getUserDirect(id: String): UserEntity? = db.userDao().getUserByIdDirect(id)
     suspend fun findUserByPhoneOrEmail(input: String): UserEntity? {
         val clean = input.trim().lowercase()
-
         val direct = db.userDao().getUserByPhoneOrEmail(clean)
         if (direct != null) return direct
 

@@ -1,6 +1,6 @@
 {
   "name": "OcaVenteDz",
-  "description": "سوق بيع وشراء المستعمل في الجزائر عبر 69 ولاية مع محافظ إلكترونية ودعم Supabase",
+  "description": "تطبيق OcaVenteDz للبيع والشراء في الجزائر مع إدارة الرصيد والطلبات عبر Supabase وSupabase",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

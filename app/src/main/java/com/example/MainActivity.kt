@@ -33,6 +33,7 @@ import com.example.ui.components.OcaVenteBottomBar
 import com.example.ui.components.OcaVenteTopBar
 import com.example.ui.screens.auth.AuthLandingScreen
 import com.example.ui.screens.auth.LoginScreen
+import com.example.ui.screens.auth.ForgotPasswordScreen
 import com.example.ui.screens.auth.ChangePasswordScreen
 import com.example.ui.screens.auth.EditProfileScreen
 import com.example.ui.screens.auth.RegisterScreen
@@ -65,6 +66,7 @@ sealed class Screen {
     object LegalInfo : Screen()
     object Register : Screen()
     object Login : Screen()
+    object ForgotPassword : Screen()
     object EditProfile : Screen()
     object ChangePassword : Screen()
 }
@@ -143,6 +145,7 @@ fun OcaVenteApp(viewModel: MarketplaceViewModel) {
             is Screen.LegalInfo -> currentScreen = Screen.MainTab("profile")
             is Screen.Register -> currentScreen = Screen.AuthLanding
             is Screen.Login -> currentScreen = Screen.AuthLanding
+            is Screen.ForgotPassword -> currentScreen = Screen.Login
             is Screen.EditProfile -> currentScreen = Screen.MainTab("profile")
             is Screen.ChangePassword -> currentScreen = Screen.MainTab("profile")
         }
@@ -228,10 +231,10 @@ fun OcaVenteApp(viewModel: MarketplaceViewModel) {
                                 )
                                 "chat" -> {
                                     val allListings by viewModel.adminListings.collectAsState()
-                                    val demoListing = allListings.firstOrNull()
+                                    val firstListing = allListings.firstOrNull()
                                     ChatScreen(
-                                        listingId = demoListing?.id ?: "list_1",
-                                        sellerId = demoListing?.userId ?: "user_yacine",
+                                        listingId = firstListing?.id.orEmpty(),
+                                        sellerId = firstListing?.userId.orEmpty(),
                                         viewModel = viewModel,
                                         onBack = { currentScreen = Screen.MainTab("home") }
                                     )
@@ -344,6 +347,15 @@ fun OcaVenteApp(viewModel: MarketplaceViewModel) {
                                 onBack = { currentScreen = Screen.AuthLanding },
                                 onLoggedIn = { currentScreen = Screen.MainTab("home") },
                                 onRegister = { currentScreen = Screen.Register },
+                                onForgotPassword = { currentScreen = Screen.ForgotPassword }
+                            )
+                        }
+
+                        is Screen.ForgotPassword -> {
+                            ForgotPasswordScreen(
+                                viewModel = viewModel,
+                                onBack = { currentScreen = Screen.Login },
+                                onLogin = { currentScreen = Screen.Login }
                             )
                         }
 

@@ -38,7 +38,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.local.UserEntity
-import com.example.data.models.AlgeriaWilayas
+import com.example.data.model.AlgeriaWilayas
 import com.example.ui.theme.EmeraldPrimary
 import com.example.ui.viewmodel.MarketplaceViewModel
 
@@ -52,6 +52,7 @@ fun EditProfileScreen(
 ) {
     var name by remember { mutableStateOf(user.name) }
     var phone by remember { mutableStateOf(user.phone) }
+    var email by remember { mutableStateOf(user.email) }
     var wilaya by remember { mutableStateOf(user.wilaya) }
     var commune by remember { mutableStateOf(user.commune) }
     var bio by remember { mutableStateOf(user.bio) }
@@ -84,6 +85,7 @@ fun EditProfileScreen(
             Text("عدّل بياناتك الشخصية ومعلومات التواصل.", color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center, fontSize = 13.sp)
             OutlinedTextField(name, { name = it; error = null }, Modifier.fillMaxWidth(), label = { Text("الاسم الكامل") }, singleLine = true, enabled = !saving)
             OutlinedTextField(phone, { phone = it; error = null }, Modifier.fillMaxWidth(), label = { Text("رقم الهاتف") }, singleLine = true, enabled = !saving)
+            OutlinedTextField(email, { email = it; error = null }, Modifier.fillMaxWidth(), label = { Text("البريد الإلكتروني") }, singleLine = true, enabled = !saving)
 
             // Wilaya: Read-only dropdown list of 69 wilayas
             ExposedDropdownMenuBox(
@@ -173,7 +175,7 @@ fun EditProfileScreen(
             Button(
                 onClick = {
                     saving = true
-                    viewModel.updateCurrentUserProfile(name, phone, wilaya, commune, bio,
+                    viewModel.updateCurrentUserProfile(name, phone, email, wilaya, commune, bio,
                         onSuccess = { saving = false; onSaved() },
                         onError = { saving = false; error = it })
                 },
