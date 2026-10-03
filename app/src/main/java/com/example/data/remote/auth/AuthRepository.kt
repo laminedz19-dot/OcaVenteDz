@@ -48,6 +48,26 @@ class AuthRepository {
 
     suspend fun loginWithEmail(email: String, password: String): Result<AuthUser?> =
         authenticate("token?grant_type=password", email, password)
+    suspend fun verifyEmailOtp(email: String, token: String): Result<AuthUser?> = withContext(Dispatchers.IO) {
+        val first = verifyOtp(email, token, "signup")
+        if (first.isSuccess) first else verifyOtp(email, token, "email")
+    }
+    private fun verifyOtp(email: String, token: String, type: String): Result<AuthUser?> = try {
+        val response = http.newCall(authRequest("verify", JSONObject().put("email", email.trim()).put("token", token).put("type", type))).execute()
+        val text = response.body?.string().orEmpty()
+        if (!response.isSuccessful) Result.failure(Exception(toArabicMessage(runCatching { JSONObject(text) }.getOrDefault(JSONObject()))))
+        else {
+            val json = JSONObject(text); val user = json.optJSONObject("user") ?: json; val access = json.optString("access_token")
+            if (access.isNotBlank()) SupabaseSessionStore.save(access, json.optString("refresh_token"), user.optString("id"), json.optLong("expires_in", 3600L))
+            Result.success(AuthUser(user.optString("id"), user.optString("email"), user.optJSONObject("user_metadata")?.optString("name"), user.optString("phone")))
+        }
+    } catch (e: Exception) { Result.failure(Exception("تعذر الاتصال بخدمة التحقق", e)) }
+    suspend fun resendSignupOtp(email: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val response = http.newCall(authRequest("resend", JSONObject().put("type", "signup").put("email", email.trim()))).execute()
+            if (response.isSuccessful) Result.success(Unit) else Result.failure(Exception("تعذر إعادة إرسال رمز التحقق"))
+        } catch (e: Exception) { Result.failure(Exception("تعذر الاتصال بخدمة البريد", e)) }
+    }
 
     private suspend fun authenticate(path: String, email: String, password: String): Result<AuthUser?> = withContext(Dispatchers.IO) {
         try {

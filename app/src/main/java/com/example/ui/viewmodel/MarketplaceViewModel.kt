@@ -444,7 +444,8 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
         commune: String,
         password: String = "",
         onSuccess: () -> Unit,
-        onError: (String) -> Unit
+        onError: (String) -> Unit,
+        onVerificationRequired: (String) -> Unit = {}
     ) {
         val cleanName = name.trim()
         val cleanPhone = phone.trim()
@@ -455,7 +456,8 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
         when {
             cleanName.length < 2 -> { onError("يرجى إدخال الاسم الكامل."); return }
             cleanPhone.length < 9 -> { onError("يرجى إدخال رقم هاتف صحيح."); return }
-            cleanEmail.isNotEmpty() && !android.util.Patterns.EMAIL_ADDRESS.matcher(cleanEmail).matches() -> {
+            cleanEmail.isBlank() -> { onError("البريد الإلكتروني مطلوب للتسجيل والتحقق."); return }
+            !android.util.Patterns.EMAIL_ADDRESS.matcher(cleanEmail).matches() -> {
                 onError("صيغة البريد الإلكتروني غير صحيحة."); return
             }
             password.length < 6 -> { onError("يجب أن تتكون كلمة المرور من 6 أحرف على الأقل."); return }
@@ -464,22 +466,14 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
 
         viewModelScope.launch {
             try {
-                val digitsPhone = cleanPhone.filter { it.isDigit() }
-                val authEmail = if (cleanEmail.isNotBlank()) cleanEmail else "${digitsPhone}@ocaventedz.dz"
+                val authEmail = cleanEmail
 
                 var authRes = repository.authService.registerWithEmail(authEmail, password)
                 if (authRes.isFailure) {
                     val errMsg = authRes.exceptionOrNull()?.message.orEmpty()
                     if (errMsg.contains("already", ignoreCase = true) || errMsg.contains("مسجل مسبقاً")) {
-                        val loginAttempt = repository.authService.loginWithEmail(authEmail, password)
-                        if (loginAttempt.isSuccess) {
-                            authRes = loginAttempt
-                        } else {
-                            withContext(Dispatchers.Main) {
-                                onError(authRes.exceptionOrNull()?.message ?: "هذا الحساب مسجل مسبقاً. يرجى تسجيل الدخول.")
-                            }
-                            return@launch
-                        }
+                        withContext(Dispatchers.Main) { onError("هذا الحساب مسجل مسبقاً. يرجى تسجيل الدخول.") }
+                        return@launch
                     } else {
                         withContext(Dispatchers.Main) {
                             onError(authRes.exceptionOrNull()?.message ?: "فشل إنشاء الحساب عبر خادم المصادقة.")
@@ -518,6 +512,10 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
                 )
                 repository.saveUser(newUser)
                 repository.createEmptyWallet(realUid)
+                if (repository.authService.currentUserId.isNullOrBlank()) {
+                    withContext(Dispatchers.Main) { onVerificationRequired(cleanEmail) }
+                    return@launch
+                }
                 saveLoggedInUserId(realUid)
                 _currentUserId.value = realUid
                 emitMessage("تم إنشاء الحساب بنجاح. مرحبًا بك في OcaVenteDz!")
@@ -541,7 +539,7 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
     ) {
         val cleanIdentifier = identifier.trim().lowercase()
         if (cleanIdentifier.isEmpty()) {
-            onError("يرجى إدخال رقم الهاتف أو البريد الإلكتروني.")
+            onError("يرجى إدخال البريد الإلكتروني.")
             return
         }
         if (password.isBlank()) {
@@ -550,12 +548,11 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
         }
 
         viewModelScope.launch {
-            val loginTarget = if (android.util.Patterns.EMAIL_ADDRESS.matcher(cleanIdentifier).matches()) {
-                cleanIdentifier
-            } else {
-                "${cleanIdentifier.filter { it.isDigit() }}@ocaventedz.dz"
+            if (!android.util.Patterns.EMAIL_ADDRESS.matcher(cleanIdentifier).matches()) {
+                withContext(Dispatchers.Main) { onError("استخدم البريد الإلكتروني. رقم الهاتف مخصص للتواصل فقط.") }
+                return@launch
             }
-            val authResult = repository.authService.loginWithEmail(loginTarget, password)
+            val authResult = repository.authService.loginWithEmail(cleanIdentifier, password)
             if (authResult.isSuccess) {
                 val authUser = authResult.getOrNull()
                 val uid = authUser?.uid ?: ""
@@ -569,8 +566,8 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
                 val remoteUser = repository.supabaseClient.getUser(uid).getOrNull()
                 val localUser = remoteUser ?: repository.getUserDirect(uid) ?: UserEntity(
                     id = uid,
-                    phone = if (!loginTarget.endsWith("@ocaventedz.dz")) "" else cleanIdentifier,
-                    email = if (!loginTarget.endsWith("@ocaventedz.dz")) cleanIdentifier else "",
+                    phone = "",
+                    email = cleanIdentifier,
                     name = authUser?.displayName ?: "مستخدم OcaVenteDz",
                     avatarUrl = "",
                     wilaya = "الجزائر",
@@ -623,40 +620,38 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
         onSuccess: (String) -> Unit,
         onError: (String) -> Unit
     ) {
-        val cleanIdentifier = identifier.trim().lowercase()
-        if (cleanIdentifier.isEmpty()) {
-            onError("يرجى إدخال البريد الإلكتروني أو رقم الهاتف.")
+        val email = identifier.trim().lowercase()
+        if (!android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+            onError("أدخل بريدًا إلكترونيًا صالحًا فقط.")
             return
         }
-
         viewModelScope.launch {
-            if (android.util.Patterns.EMAIL_ADDRESS.matcher(cleanIdentifier).matches()) {
-                val authResult = repository.authService.sendPasswordReset(cleanIdentifier)
-                if (authResult.isSuccess) {
-                    onSuccess("تم إرسال رابط استعادة كلمة المرور إلى $cleanIdentifier عبر الخدمة السحابية بنجاح.")
-                    return@launch
-                }
+            val result = repository.authService.sendPasswordReset(email)
+            withContext(Dispatchers.Main) {
+                if (result.isSuccess) onSuccess("تم إرسال رابط استعادة كلمة المرور إلى $email.")
+                else onError("تعذر إرسال رابط استعادة كلمة المرور إلى هذا البريد.")
             }
+        }
+    }
 
-            val user = repository.findUserByPhoneOrEmail(cleanIdentifier)
-                ?: repository.getAllUsersDirect().firstOrNull { candidate ->
-                    candidate.phone.trim().lowercase() == cleanIdentifier ||
-                        (candidate.email.isNotBlank() && candidate.email.trim().lowercase() == cleanIdentifier)
-                }
-            if (user == null) {
-                onError("لم يتم العثور على حساب بهذه البيانات.")
-                return@launch
-            }
-            if (user.email.isNotBlank()) {
-                val authResult = repository.authService.sendPasswordReset(user.email)
-                if (authResult.isSuccess) {
-                    onSuccess("تم إرسال رابط استعادة كلمة المرور إلى ${user.email} عبر الخدمة السحابية بنجاح.")
-                    return@launch
-                }
-                onSuccess("تم التحقق من الحساب ${user.name}. تم إرسال طلب استعادة كلمة المرور.")
-            } else {
-                onSuccess("تم التحقق من الحساب ${user.name}. يلزم ربط بريد إلكتروني لاستعادة كلمة المرور عبر البريد.")
-            }
+    fun verifyRegistrationEmail(email: String, code: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        if (!Regex("\\d{6}").matches(code.trim())) { onError("أدخل رمز التحقق المكوّن من 6 أرقام."); return }
+        viewModelScope.launch {
+            val result = repository.authService.verifyEmailOtp(email.trim(), code.trim())
+            val user = result.getOrNull()
+            if (result.isSuccess && !user?.uid.isNullOrBlank()) {
+                saveLoggedInUserId(user!!.uid); _currentUserId.value = user.uid
+                withContext(Dispatchers.Main) { onSuccess() }
+            } else withContext(Dispatchers.Main) { onError(result.exceptionOrNull()?.message ?: "رمز التحقق غير صحيح أو منتهي الصلاحية.") }
+        }
+    }
+
+    fun resendRegistrationEmailCode(email: String, onSuccess: (String) -> Unit, onError: (String) -> Unit) {
+        viewModelScope.launch {
+            repository.authService.resendSignupOtp(email.trim()).fold(
+                { withContext(Dispatchers.Main) { onSuccess("تم إرسال رمز تحقق جديد إلى بريدك الإلكتروني.") } },
+                { withContext(Dispatchers.Main) { onError(it.message ?: "تعذر إعادة إرسال الرمز.") } }
+            )
         }
     }
 
