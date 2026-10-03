@@ -183,52 +183,45 @@ class MarketplaceRepository(
         val note = adminNote.ifBlank { "تم التحقق من الوصل بنجاح" }
         val now = System.currentTimeMillis()
 
-        // 1. Update Supabase
-        try {
-            supabaseClient.updateTopUpStatus(requestId, "APPROVED", note)
-        } catch (e: Exception) {
-            android.util.Log.w("MarketplaceRepository", "Supabase approve warning: ${e.message}")
+        // 1. Call server-side atomic RPC with double-approval protection
+        val cloudResult = supabaseClient.approveTopUpRequest(requestId, note)
+        if (cloudResult.isFailure) {
+            return Result.failure(cloudResult.exceptionOrNull() ?: Exception("فشل اعتماد طلب الشحن على الخادم."))
         }
 
-        // 3. Update local Room cache
+        // 2. Update local Room cache on success
         try {
             db.topUpRequestDao().updateStatus(requestId, "APPROVED", note, now)
+            val req = db.topUpRequestDao().getRequestById(requestId)
+            if (req != null && req.amountDzd > 0) {
+                db.walletDao().creditWallet(req.userId, req.amountDzd, now)
+                val tx = WalletTransactionEntity(
+                    id = "tx_" + UUID.randomUUID().toString().replace("-", "").take(10),
+                    userId = req.userId,
+                    type = "TOPUP",
+                    amount = req.amountDzd,
+                    description = "شحن رصيد معتمد - ${req.provider} (مرجع: ${req.reference.ifBlank { req.id }})",
+                    referenceId = req.id,
+                    timestamp = now
+                )
+                db.walletDao().insertTransaction(tx)
+            }
         } catch (e: Exception) {
             android.util.Log.w("MarketplaceRepository", "Local cache update warning: ${e.message}")
         }
 
-        // 4. Credit user wallet in Supabase and local Room
-        try {
-            val req = db.topUpRequestDao().getRequestById(requestId)
-            if (req != null && req.amountDzd > 0) {
-                val uid = req.userId
-                val currentWallet = supabaseClient.getWallet(uid).getOrNull()
-                val newBal = (currentWallet?.balanceDzd ?: 0) + req.amountDzd
-                supabaseClient.saveWallet(WalletEntity(userId = uid, balanceDzd = newBal, updatedAt = now))
-                db.walletDao().insertOrUpdateWallet(WalletEntity(userId = uid, balanceDzd = newBal, updatedAt = now))
-            }
-        } catch (e: Exception) {
-            android.util.Log.w("MarketplaceRepository", "Wallet credit warning: ${e.message}")
-        }
-
-        return Result.success("تمت الموافقة على طلب الشحن وتحديث الحالة بنجاح ✓")
+        return Result.success("تمت الموافقة على طلب الشحن وشحن الرصيد بنجاح ✓")
     }
 
-    /**
-     * Rejects top-up request: updates Supabase, الخدمة السحابية, and Room cache.
-     */
     suspend fun rejectTopUpRequest(requestId: String, reason: String): Result<String> {
         val note = reason.ifBlank { "الوصل غير مطابق أو غير واضح" }
         val now = System.currentTimeMillis()
 
-        // 1. Update Supabase
-        try {
-            supabaseClient.updateTopUpStatus(requestId, "REJECTED", note)
-        } catch (e: Exception) {
-            android.util.Log.w("MarketplaceRepository", "Supabase reject warning: ${e.message}")
+        val cloudResult = supabaseClient.rejectTopUpRequest(requestId, note)
+        if (cloudResult.isFailure) {
+            return Result.failure(cloudResult.exceptionOrNull() ?: Exception("فشل رفض طلب الشحن على الخادم."))
         }
 
-        // 3. Update local Room cache
         try {
             db.topUpRequestDao().updateStatus(requestId, "REJECTED", note, now)
         } catch (e: Exception) {
@@ -239,7 +232,7 @@ class MarketplaceRepository(
     }
 
     suspend fun topUpWallet(userId: String, amount: Int, paymentProvider: String, txReference: String? = null): Result<String> {
-        return Result.failure(Exception("يرجى إرسال وصل التحويل للمراجعة اليدوية عبر شحن المحفظة."))
+        return Result.failure(Exception("عمليات الشحن المباشر غير متاحة لأسباب أمنية؛ يرجى مراجعة واعتماد طلبات الشحن المقدمة من المستخدمين."))
     }
 
     // Users

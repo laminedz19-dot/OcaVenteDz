@@ -188,13 +188,25 @@ class MarketplaceRepository(
 
     /** Submits a top-up request using Supabase and caches it in Room. */
     suspend fun submitTopUpRequest(
-        context: Context, userId: String = "", amount: Int, provider: String,
-        reference: String, receiptImageUriString: String
+        context: Context,
+        amount: Int,
+        provider: String,
+        reference: String,
+        receiptImageUriString: String
     ): Result<String> = withContext(Dispatchers.IO) {
-        if (amount < 200) return@withContext Result.failure(IllegalArgumentException("الحد الأدنى لشحن الرصيد هو 200 دج."))
-        if (provider !in setOf("BARIDIMOB", "CCP", "EDAHABIA", "CIB")) return@withContext Result.failure(IllegalArgumentException("مزود الدفع المحدد غير مدعوم."))
-        if (reference.isBlank() && receiptImageUriString.isBlank()) return@withContext Result.failure(IllegalArgumentException("يجب إرفاق صورة الوصل أو رقم المرجع."))
-        val uid = authService.currentUserId ?: userId.takeIf { it.isNotBlank() } ?: return@withContext Result.failure(IllegalStateException("يجب تسجيل الدخول أولاً."))
+        if (amount < 200) {
+            return@withContext Result.failure(IllegalArgumentException("الحد الأدنى لشحن الرصيد هو 200 دج."))
+        }
+        if (provider !in setOf("BARIDIMOB", "CCP", "EDAHABIA", "CIB")) {
+            return@withContext Result.failure(IllegalArgumentException("مزود الدفع المحدد غير مدعوم."))
+        }
+        if (reference.isBlank() && receiptImageUriString.isBlank()) {
+            return@withContext Result.failure(IllegalArgumentException("يجب إرفاق صورة الوصل أو رقم المرجع."))
+        }
+        val uid = authService.currentUserId
+        if (uid.isNullOrBlank() || uid == "deleted") {
+            return@withContext Result.failure(IllegalStateException("جلسة تسجيل الدخول غير صالحة. يرجى تسجيل الدخول من جديد."))
+        }
         val localUser = db.userDao().getUserByIdDirect(uid)
         val storedReceipt = if (receiptImageUriString.isNotBlank()) {
             val uploadResult = supabaseClient.uploadReceiptImage(
@@ -205,21 +217,28 @@ class MarketplaceRepository(
             )
             uploadResult.getOrElse { error ->
                 return@withContext Result.failure(
-                    Exception(error.message ?: "تعذر رفع صورة الوصل إلى الخادم.", error)
+                    Exception(error.message ?: "تعذر رفع صورة الوصل إلى الخادم السحابي.", error)
                 )
             }
         } else ""
         val request = TopUpRequestEntity(
-            id = UUID.randomUUID().toString(), userId = uid,
-            userName = localUser?.name ?: "مستخدم OcaVenteDz", userPhone = localUser?.phone ?: "",
-            amountDzd = amount, provider = provider, reference = reference.trim(),
-            receiptImageUri = storedReceipt.ifBlank { receiptImageUriString }, status = "PENDING",
-            adminNote = "", createdAt = System.currentTimeMillis(), reviewedAt = 0L
+            id = UUID.randomUUID().toString(),
+            userId = uid,
+            userName = localUser?.name ?: "مستخدم OcaVenteDz",
+            userPhone = localUser?.phone ?: "",
+            amountDzd = amount,
+            provider = provider,
+            reference = reference.trim(),
+            receiptImageUri = storedReceipt.ifBlank { receiptImageUriString },
+            status = "PENDING",
+            adminNote = "",
+            createdAt = System.currentTimeMillis(),
+            reviewedAt = 0L
         )
         val cloud = try {
             supabaseClient.submitTopUpRequest(request)
         } catch (error: Exception) {
-            Result.failure(Exception("تعذر الاتصال بالخادم.", error))
+            Result.failure(Exception("تعذر الاتصال بالخادم السحابي.", error))
         }
         if (cloud.isFailure) {
             return@withContext Result.failure(
@@ -229,12 +248,18 @@ class MarketplaceRepository(
         db.topUpRequestDao().insertRequest(request)
         Result.success("تم إرسال طلب الشحن بنجاح! ستتم مراجعته واعتماد الرصيد قريباً.")
     }
+
     suspend fun approveTopUpRequest(requestId: String, adminNote: String = "تم التحقق من الوصل بنجاح"): Result<String> {
         val request = db.topUpRequestDao().getRequestById(requestId)
             ?: return Result.failure(Exception("طلب الشحن غير موجود."))
 
         if (request.status == "APPROVED") {
             return Result.failure(Exception("هذا الطلب تمت الموافقة عليه مسبقاً."))
+        }
+
+        val cloud = supabaseClient.approveTopUpRequest(requestId, adminNote)
+        if (cloud.isFailure) {
+            return Result.failure(cloud.exceptionOrNull() ?: Exception("فشل اعتماد طلب الشحن على الخادم."))
         }
 
         val now = System.currentTimeMillis()
@@ -250,7 +275,7 @@ class MarketplaceRepository(
             userId = request.userId,
             type = "TOPUP",
             amount = request.amountDzd,
-            description = "شحن رصيد يدوي - وصل تحويل ${request.provider} (مرجع: ${request.reference.ifBlank { request.id }})",
+            description = "شحن رصيد معتمد - ${request.provider} (مرجع: ${request.reference.ifBlank { request.id }})",
             referenceId = request.id,
             timestamp = now
         )
@@ -264,6 +289,11 @@ class MarketplaceRepository(
         val request = db.topUpRequestDao().getRequestById(requestId)
             ?: return Result.failure(Exception("طلب الشحن غير موجود."))
 
+        val cloud = supabaseClient.rejectTopUpRequest(requestId, reason)
+        if (cloud.isFailure) {
+            return Result.failure(cloud.exceptionOrNull() ?: Exception("فشل رفض طلب الشحن على الخادم."))
+        }
+
         val now = System.currentTimeMillis()
         val note = reason.ifBlank { "الوصل غير مطابق أو غير واضح" }
         db.topUpRequestDao().updateStatus(request.id, "REJECTED", note, now)
@@ -271,7 +301,7 @@ class MarketplaceRepository(
     }
 
     suspend fun topUpWallet(userId: String, amount: Int, paymentProvider: String, txReference: String? = null): Result<String> {
-        return Result.failure(Exception("يرجى إرسال وصل التحويل للمراجعة اليدوية عبر شحن المحفظة."))
+        return Result.failure(Exception("عمليات الشحن المباشر غير متاحة لأسباب أمنية؛ يرجى إرسال طلب شحن مع وصل التحويل للمراجعة والاعتماد."))
     }
 
     /** Reads the balance from Supabase, then falls back to Room. */
@@ -291,39 +321,6 @@ class MarketplaceRepository(
     suspend fun getUserDirect(id: String): UserEntity? = db.userDao().getUserByIdDirect(id)
     suspend fun findUserByPhoneOrEmail(input: String): UserEntity? {
         val clean = input.trim().lowercase()
-
-        if (clean == "laminedz.19@gmail.com" || clean == "laminedz19@gmail.com") {
-            val adminUser = db.userDao().getUserByIdDirect("user_admin")
-            if (adminUser != null) {
-                if (adminUser.email != clean) {
-                    val updated = adminUser.copy(email = clean)
-                    db.userDao().insertUser(updated)
-                    return updated
-                }
-                return adminUser
-            } else {
-                val newAdmin = UserEntity(
-                    id = "user_admin",
-                    phone = "+213 555 12 34 56",
-                    email = clean,
-                    name = "المشرف العام (Lamine DZ)",
-                    avatarUrl = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200",
-                    wilaya = "الجزائر العاصمة",
-                    commune = "الجزائر الوسطى",
-                    bio = "الحساب الرسمي لإدارة ومنصة OcaVenteDz.",
-                    sellerRating = 5.0,
-                    reviewsCount = 50,
-                    adsCount = 0,
-                    createdAt = System.currentTimeMillis(),
-                    isVerified = true,
-                    verificationRequested = false,
-                    isBanned = false,
-                    role = "ADMIN"
-                )
-                db.userDao().insertUser(newAdmin)
-                return newAdmin
-            }
-        }
 
         val direct = db.userDao().getUserByPhoneOrEmail(clean)
         if (direct != null) return direct
