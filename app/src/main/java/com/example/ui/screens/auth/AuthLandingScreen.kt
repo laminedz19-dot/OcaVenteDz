@@ -107,7 +107,7 @@ fun AuthLandingScreen(
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-                text = "تسجيل الدخول برقم الهاتف",
+                text = "تسجيل الدخول",
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold
             )
@@ -130,7 +130,7 @@ fun AuthLandingScreen(
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-                text = "إنشاء حساب جديد برقم الهاتف",
+                text = "التسجيل",
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
                 color = EmeraldPrimary

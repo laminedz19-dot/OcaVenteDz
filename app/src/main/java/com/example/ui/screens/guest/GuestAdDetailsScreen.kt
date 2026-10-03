@@ -95,7 +95,7 @@ fun GuestAdDetailsScreen(
             },
             text = {
                 Text(
-                    text = "للتواصل مع البائع أو إرسال رسالة خاصة، يرجى تسجيل الدخول برقم هاتفك المسجل أو إنشاء حساب جديد.",
+                    text = "للتواصل مع البائع أو إرسال رسالة خاصة، يرجى تسجيل الدخول أو إنشاء حساب جديد.",
                     style = MaterialTheme.typography.bodyMedium
                 )
             },
