@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.util.Log
 import com.example.BuildConfig
 import com.example.data.local.*
 import kotlinx.coroutines.Dispatchers
@@ -112,8 +113,20 @@ class SupabaseClient {
                 .build()
             http.newCall(req).execute().let { response ->
                 val body = response.body?.string().orEmpty()
-                if (!response.isSuccessful) Result.failure(Exception("فشل رفع الملف: $body"))
-                else Result.success(result(path))
+                if (!response.isSuccessful) {
+                    Log.w("SupabaseStorage", "Upload failed (${response.code}) bucket=$bucket path=$path: $body")
+                    val message = when {
+                        response.code == 404 && (body.contains("Bucket not found", ignoreCase = true) || body.contains("NoSuchBucket", ignoreCase = true)) ->
+                            "تعذر رفع الوصل لأن مساحة التخزين غير متاحة. حدّث التطبيق وحاول مرة أخرى."
+                        response.code == 401 || response.code == 403 ->
+                            "انتهت جلسة الدخول أو لا تملك صلاحية رفع الوصل. سجّل الدخول من جديد."
+                        response.code in 500..599 ->
+                            "خدمة التخزين غير متاحة مؤقتًا. حاول مرة أخرى لاحقًا."
+                        else ->
+                            "تعذر رفع صورة الوصل. تحقق من الاتصال بالإنترنت وحاول مرة أخرى."
+                    }
+                    Result.failure(Exception(message))
+                } else Result.success(result(path))
             }
         } catch (e: Exception) {
             Result.failure(e)
