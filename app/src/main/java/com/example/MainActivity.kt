@@ -114,8 +114,8 @@ fun OcaVenteApp(viewModel: MarketplaceViewModel) {
     }
 
     LaunchedEffect(Unit) {
-        // Show the splash screen for 8 seconds as requested
-        delay(8_000L)
+        // Keep the branded splash concise while avoiding a flash on startup.
+        delay(5_000L)
         showSplash = false
     }
 

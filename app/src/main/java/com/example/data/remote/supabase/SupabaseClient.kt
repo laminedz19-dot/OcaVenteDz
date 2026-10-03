@@ -614,29 +614,78 @@ class SupabaseClient {
         uri: Uri,
         resultTransform: (String) -> String
     ): Result<String> = withContext(Dispatchers.IO) {
-        val tokenRes = requireAccessToken()
-        val token = tokenRes.getOrElse { return@withContext Result.failure(it) }
-
         try {
-            val imageBytes = compressImage(context, uri)
-            val req = Request.Builder()
+            var token = getValidAccessToken()
+            val imageBytes = try {
+                compressImage(context, uri)
+            } catch (e: Exception) {
+                return@withContext Result.failure(
+                    Exception("تعذر قراءة الصورة أو ضغطها: ${e.message ?: "صيغة غير مدعومة"}", e)
+                )
+            }
+            fun requestFor(accessToken: String) = Request.Builder()
                 .url("$BASE_URL/storage/v1/object/$bucket/$path")
                 .post(imageBytes.toRequestBody("image/jpeg".toMediaType()))
                 .addHeader("apikey", ANON_KEY)
-                .addHeader("Authorization", "Bearer $token")
+                .addHeader("Authorization", "Bearer $accessToken")
                 .addHeader("x-upsert", "true")
                 .build()
 
-            http.newCall(req).execute().use { response ->
-                val body = response.body?.string().orEmpty()
-                if (!response.isSuccessful) {
-                    Result.failure(Exception(mapHttpError(response.code, body)))
+            var response = http.newCall(requestFor(token)).execute()
+            if (response.code == 401) {
+                response.close()
+                token = getValidAccessToken(forceRefresh = true)
+                response = http.newCall(requestFor(token)).execute()
+            }
+            response.use { uploadResponse ->
+                val body = uploadResponse.body?.string().orEmpty()
+                if (!uploadResponse.isSuccessful) {
+                    Result.failure(Exception(mapHttpError(uploadResponse.code, body)))
                 } else {
                     Result.success(resultTransform(path))
                 }
             }
         } catch (e: Exception) {
             Result.failure(mapException(e))
+        }
+    }
+
+    private fun getValidAccessToken(forceRefresh: Boolean = false): String {
+        val currentAccess = SupabaseSessionStore.accessToken()
+            ?: throw IllegalStateException("جلسة تسجيل الدخول غير موجودة. يرجى تسجيل الدخول مجددًا.")
+        if (!forceRefresh && !SupabaseSessionStore.isExpired()) return currentAccess
+
+        val refresh = SupabaseSessionStore.refreshToken()
+            ?: throw IllegalStateException("انتهت صلاحية الجلسة ولا يتوفر رمز تجديد. يرجى تسجيل الدخول مجددًا.")
+        val request = Request.Builder()
+            .url("$BASE_URL/auth/v1/token?grant_type=refresh_token")
+            .post(JSONObject().put("refresh_token", refresh).toString().toRequestBody(JSON))
+            .addHeader("apikey", ANON_KEY)
+            .addHeader("Content-Type", "application/json")
+            .build()
+
+        return http.newCall(request).execute().use { response ->
+            val body = response.body?.string().orEmpty()
+            if (!response.isSuccessful) {
+                val message = if (response.code in 400..403) {
+                    "انتهت جلسة تسجيل الدخول. يرجى تسجيل الدخول مجددًا."
+                } else {
+                    mapHttpError(response.code, body)
+                }
+                throw IllegalStateException(message)
+            }
+            val json = JSONObject(body)
+            val newAccess = json.optString("access_token")
+            if (newAccess.isBlank()) throw IllegalStateException("تعذر تجديد جلسة تسجيل الدخول.")
+            val uid = json.optJSONObject("user")?.optString("id")
+                ?.takeIf { it.isNotBlank() } ?: SupabaseSessionStore.userId()
+            SupabaseSessionStore.save(
+                newAccess,
+                json.optString("refresh_token").ifBlank { refresh },
+                json.optLong("expires_in", 3600L),
+                uid
+            )
+            newAccess
         }
     }
 

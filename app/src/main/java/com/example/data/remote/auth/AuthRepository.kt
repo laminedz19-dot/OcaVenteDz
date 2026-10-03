@@ -22,6 +22,11 @@ data class AuthUser(
     val phoneNumber: String?
 )
 
+class AuthRateLimitException(
+    val retryAfterSeconds: Long,
+    message: String
+) : Exception(message)
+
 class AuthRepository {
     companion object {
         private const val TAG = "SupabaseAuth"
@@ -68,7 +73,12 @@ class AuthRepository {
                 val text = resp.body?.string().orEmpty()
                 if (!resp.isSuccessful) {
                     val msg = parseAuthErrorMessage(text, resp.code)
-                    return@withContext Result.failure(Exception(msg))
+                    val error = if (resp.code == 429) {
+                        rateLimitException(text, resp.header("Retry-After"))
+                    } else {
+                        Exception(msg)
+                    }
+                    return@withContext Result.failure(error)
                 }
                 val json = JSONObject(text)
                 val userObj = json.optJSONObject("user") ?: json
@@ -314,6 +324,29 @@ class AuthRepository {
             rawMsg.isNotBlank() -> rawMsg
             else -> "فشلت عملية المصادقة (رمز الخطأ: $statusCode)."
         }
+    }
+
+    private fun rateLimitException(bodyText: String, retryAfterHeader: String?): AuthRateLimitException {
+        val json = runCatching { JSONObject(bodyText) }.getOrNull()
+        val serverMessage = json?.optString("msg")
+            ?.ifBlank { json.optString("message") }
+            ?.ifBlank { json.optString("error_description") }
+            .orEmpty()
+        val directSeconds = listOf("retry_after", "retry_after_seconds", "wait_seconds")
+            .firstNotNullOfOrNull { key -> json?.optLong(key, 0L)?.takeIf { it > 0L } }
+            ?: retryAfterHeader?.toLongOrNull()?.takeIf { it > 0L }
+        val parsedDelay = Regex("(?i)(?:after|in|wait)\\s+(\\d+)\\s*(seconds?|secs?|minutes?|mins?)")
+            .find(serverMessage)
+            ?.let { match ->
+                val amount = match.groupValues[1].toLongOrNull() ?: return@let null
+                if (match.groupValues[2].startsWith("min", ignoreCase = true)) amount * 60L else amount
+            }
+        val seconds = (directSeconds ?: parsedDelay ?: 180L).coerceIn(1L, 1800L)
+        val duration = if (seconds >= 60L) "${(seconds + 59L) / 60L} دقيقة" else "$seconds ثانية"
+        return AuthRateLimitException(
+            seconds,
+            "تم بلوغ حد محاولات إنشاء الحساب. انتظر $duration قبل المحاولة مجددًا."
+        )
     }
 
     private fun mapNetworkException(e: Exception): Exception {

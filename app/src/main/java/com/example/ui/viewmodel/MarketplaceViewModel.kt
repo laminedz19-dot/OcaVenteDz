@@ -35,14 +35,17 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 import android.util.Log
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicBoolean
+import com.example.data.remote.auth.AuthRateLimitException
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class MarketplaceViewModel(application: Application) : AndroidViewModel(application) {
 
     private val sessionPrefs = application.getSharedPreferences("ocavente_user_session", Context.MODE_PRIVATE)
+    private val registrationPrefs = application.getSharedPreferences("ocavente_registration_limits", Context.MODE_PRIVATE)
+    private val registrationInProgress = AtomicBoolean(false)
 
     fun getSavedUserId(): String {
         return sessionPrefs.getString("logged_in_user_id", "") ?: ""
@@ -490,12 +493,32 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
             cleanWilaya.isEmpty() || cleanCommune.isEmpty() -> { onError("يرجى اختيار الولاية والبلدية."); return }
         }
 
+        if (!registrationInProgress.compareAndSet(false, true)) {
+            onError("طلب إنشاء الحساب قيد التنفيذ. انتظر انتهاءه قبل إعادة المحاولة.")
+            return
+        }
+
         viewModelScope.launch {
             try {
+                val retryAt = registrationPrefs.getLong("retry_after", 0L)
+                val remainingSeconds = ((retryAt - System.currentTimeMillis()).coerceAtLeast(0L) + 999L) / 1000L
+                if (remainingSeconds > 0L) {
+                    withContext(Dispatchers.Main) {
+                        onError("تم تجاوز حد المحاولات. انتظر $remainingSeconds ثانية قبل إعادة المحاولة.")
+                    }
+                    return@launch
+                }
+
                 val authEmail = "${normalizedPhone}@ocaventedz.dz"
                 val authResult = repository.authService.registerWithEmail(authEmail, password)
                 if (authResult.isFailure) {
-                    val errMsg = authResult.exceptionOrNull()?.message ?: "فشل تسجيل الحساب عبر الخدمة السحابية."
+                    val authError = authResult.exceptionOrNull()
+                    if (authError is AuthRateLimitException) {
+                        registrationPrefs.edit()
+                            .putLong("retry_after", System.currentTimeMillis() + authError.retryAfterSeconds * 1000L)
+                            .apply()
+                    }
+                    val errMsg = authError?.message ?: "فشل تسجيل الحساب عبر الخدمة السحابية."
                     withContext(Dispatchers.Main) { onError(errMsg) }
                     return@launch
                 }
@@ -538,6 +561,8 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
                 withContext(Dispatchers.Main) {
                     onError(e.message ?: "حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى.")
                 }
+            } finally {
+                registrationInProgress.set(false)
             }
         }
     }

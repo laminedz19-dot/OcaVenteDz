@@ -3,10 +3,16 @@ val localProperties = Properties().apply {
   val propertiesFile = rootProject.file("local.properties")
   if (propertiesFile.exists()) propertiesFile.inputStream().use { load(it) }
 }
+val dotenvProperties = Properties().apply {
+  val envFile = rootProject.file(".env")
+  if (envFile.exists()) envFile.inputStream().use { load(it) }
+}
 fun localValue(name: String, fallback: String = ""): String {
   val envVal = System.getenv(name)
   if (!envVal.isNullOrBlank()) return envVal.replace("\\", "\\\\").replace("\"", "\\\"")
-  val propVal = localProperties.getProperty(name, fallback) ?: fallback
+  val propVal = localProperties.getProperty(name)
+    ?: dotenvProperties.getProperty(name)
+    ?: fallback
   return propVal.replace("\\", "\\\\").replace("\"", "\\\"")
 }
 
