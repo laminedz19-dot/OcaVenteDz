@@ -14,7 +14,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.HowToReg
 import androidx.compose.material.icons.filled.LocationCity
 import androidx.compose.material.icons.filled.Lock
@@ -300,7 +299,6 @@ fun RegisterScreen(
                     viewModel.registerUser(
                         name = name,
                         phone = phone,
-                        email = "",
                         wilaya = wilaya,
                         commune = commune,
                         password = password,

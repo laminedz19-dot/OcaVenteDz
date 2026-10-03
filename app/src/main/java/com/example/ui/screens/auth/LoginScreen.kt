@@ -50,7 +50,6 @@ fun LoginScreen(
     onBack: () -> Unit,
     onLoggedIn: () -> Unit,
     onRegister: () -> Unit,
-    onForgotPassword: () -> Unit
 ) {
     var identifier by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -166,9 +165,6 @@ fun LoginScreen(
 
             TextButton(onClick = onRegister, enabled = !isSubmitting) {
                 Text("ليس لديك حساب؟ إنشاء حساب جديد")
-            }
-            TextButton(onClick = onForgotPassword, enabled = !isSubmitting) {
-                Text("نسيت كلمة المرور؟ استعادتها")
             }
             Spacer(modifier = Modifier.height(16.dp))
         }
