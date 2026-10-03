@@ -1,5 +1,3 @@
-@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
-
 package com.example.ui.screens.auth
 
 import androidx.compose.foundation.layout.Arrangement
