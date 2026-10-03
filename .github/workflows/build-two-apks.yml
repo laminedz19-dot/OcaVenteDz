@@ -70,13 +70,27 @@ jobs:
           path: dist-apks/OcaVenteDz-User.apk
 
       - name: Publish Direct APK Download Release
-        uses: softprops/action-gh-release@v2
         if: github.ref == 'refs/heads/main'
-        with:
-          tag_name: v1.0.6
-          name: "OcaVente DZ APKs v1.0.6 (إصلاح مصادقة المشرف)"
-          make_latest: true
-          body: |
+        run: |
+          set -euo pipefail
+
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" \
+              --title "$RELEASE_NAME" \
+              --notes "$RELEASE_NOTES" \
+              --target "$GITHUB_SHA" \
+              --latest
+          fi
+
+          gh release upload "$TAG" \
+            dist-apks/OcaVenteDz-User.apk \
+            dist-apks/OcaVenteDz-Admin.apk \
+            --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: v1.0.6
+          RELEASE_NAME: "OcaVente DZ APKs v1.0.6 (إصلاح مصادقة المشرف)"
+          RELEASE_NOTES: |
             ### تحميل مباشر لملفات APK بدون الحاجة لفك الضغط:
             - اضغط مباشرة على ملف **OcaVenteDz-User.apk** أدناه لتنزيله وتثبيته فوراً.
             - اضغط مباشرة على ملف **OcaVenteDz-Admin.apk** أدناه لتنزيل تطبيق الإدارة وتثبيته فوراً.
@@ -85,8 +99,3 @@ jobs:
             - تهيئة وتكامل عميل Supabase السحابي مع التطبيق.
             - استقرار وثبات جلسة تسجيل الدخول حتى طلب الخروج الصريح.
             - التحقق السحابي المزدوج وإدارة وصولات الدفع والإشراف المركزي.
-          files: |
-            dist-apks/OcaVenteDz-User.apk
-            dist-apks/OcaVenteDz-Admin.apk
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
