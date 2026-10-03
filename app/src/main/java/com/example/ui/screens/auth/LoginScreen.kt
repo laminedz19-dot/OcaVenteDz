@@ -15,7 +15,7 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Login
-import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -24,7 +24,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -51,9 +50,7 @@ fun LoginScreen(
     onBack: () -> Unit,
     onLoggedIn: () -> Unit,
     onRegister: () -> Unit,
-    onForgotPassword: () -> Unit,
-    onGoogleLogin: () -> Unit,
-    onAppleLogin: () -> Unit
+    onForgotPassword: () -> Unit
 ) {
     var identifier by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -94,7 +91,7 @@ fun LoginScreen(
                 fontWeight = FontWeight.Bold
             )
             Text(
-                text = "أدخل رقم الهاتف أو البريد الإلكتروني المرتبط بحسابك.",
+                text = "أدخل رقم هاتفك وكلمة المرور لتسجيل الدخول إلى حسابك.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
                 fontSize = 14.sp
@@ -105,9 +102,10 @@ fun LoginScreen(
                 value = identifier,
                 onValueChange = { identifier = it; errorMessage = null },
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("الهاتف أو البريد الإلكتروني") },
-                leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                label = { Text("رقم الهاتف") },
+                placeholder = { Text("05 55 12 34 56") },
+                leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                 singleLine = true,
                 enabled = !isSubmitting
             )
@@ -131,7 +129,7 @@ fun LoginScreen(
             Button(
                 onClick = {
                     if (identifier.isBlank()) {
-                        errorMessage = "يرجى إدخال رقم الهاتف أو البريد الإلكتروني"
+                        errorMessage = "يرجى إدخال رقم الهاتف"
                         return@Button
                     }
                     if (password.isBlank()) {
@@ -166,26 +164,8 @@ fun LoginScreen(
                 }
             }
 
-            Text("أو الدخول باستخدام", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
-            OutlinedButton(
-                onClick = onGoogleLogin,
-                modifier = Modifier.fillMaxWidth().height(46.dp),
-                enabled = !isSubmitting
-            ) {
-                Text("G", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                Text("  تسجيل الدخول عبر Google", fontWeight = FontWeight.SemiBold)
-            }
-            OutlinedButton(
-                onClick = onAppleLogin,
-                modifier = Modifier.fillMaxWidth().height(46.dp),
-                enabled = !isSubmitting
-            ) {
-                Text("", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                Text("  تسجيل الدخول عبر Apple", fontWeight = FontWeight.SemiBold)
-            }
-
             TextButton(onClick = onRegister, enabled = !isSubmitting) {
-                Text("ليس لديك حساب؟ التسجيل الآن")
+                Text("ليس لديك حساب؟ إنشاء حساب جديد")
             }
             TextButton(onClick = onForgotPassword, enabled = !isSubmitting) {
                 Text("نسيت كلمة المرور؟ استعادتها")

@@ -47,6 +47,8 @@ import com.example.ui.screens.profile.SellerProfileScreen
 import com.example.ui.screens.search.SearchScreen
 import com.example.ui.screens.security.SecurityCenterScreen
 import com.example.ui.screens.SplashScreen
+import com.example.ui.screens.guest.GuestBrowseScreen
+import com.example.ui.screens.guest.GuestAdDetailsScreen
 import com.example.ui.theme.OcaVenteTheme
 import com.example.ui.viewmodel.MarketplaceViewModel
 import kotlinx.coroutines.flow.collectLatest
@@ -58,6 +60,8 @@ sealed class Screen {
     data class ChatConversation(val listingId: String, val sellerId: String) : Screen()
     data class SellerProfile(val sellerId: String) : Screen()
     object AuthLanding : Screen()
+    object GuestBrowse : Screen()
+    data class GuestAdDetails(val listingId: String) : Screen()
     object SecurityCenter : Screen()
     object LegalInfo : Screen()
     object Register : Screen()
@@ -106,17 +110,12 @@ fun OcaVenteApp(viewModel: MarketplaceViewModel) {
             if (currentScreen is Screen.AuthLanding || currentScreen is Screen.Login || currentScreen is Screen.Register) {
                 currentScreen = Screen.MainTab("home")
             }
-        } else {
-            if (currentScreen !is Screen.AuthLanding && currentScreen !is Screen.Login && currentScreen !is Screen.Register && currentScreen !is Screen.ForgotPassword) {
-                currentScreen = Screen.AuthLanding
-            }
         }
     }
 
     LaunchedEffect(Unit) {
-        // Show the branded developer splash for a brief 1.2s moment
-        // Backend availability must never block startup.
-        delay(1_200L)
+        // Show the splash screen for 8 seconds as requested
+        delay(8_000L)
         showSplash = false
     }
 
@@ -127,13 +126,17 @@ fun OcaVenteApp(viewModel: MarketplaceViewModel) {
     }
 
     // Handle back button behavior for sub-screens
-    BackHandler(enabled = currentScreen !is Screen.MainTab || (currentScreen as Screen.MainTab).tab != "home") {
+    BackHandler(enabled = currentScreen !is Screen.AuthLanding) {
         when (currentScreen) {
             is Screen.MainTab -> {
                 if ((currentScreen as Screen.MainTab).tab != "home") {
                     currentScreen = Screen.MainTab("home")
+                } else if (currentUserId.isBlank()) {
+                    currentScreen = Screen.AuthLanding
                 }
             }
+            is Screen.GuestBrowse -> currentScreen = Screen.AuthLanding
+            is Screen.GuestAdDetails -> currentScreen = Screen.GuestBrowse
             is Screen.AdDetails -> currentScreen = Screen.MainTab("home")
             is Screen.ChatConversation -> currentScreen = Screen.MainTab("chat")
             is Screen.SellerProfile -> currentScreen = Screen.MainTab("home")
@@ -172,7 +175,12 @@ fun OcaVenteApp(viewModel: MarketplaceViewModel) {
                     OcaVenteBottomBar(
                         currentTab = (currentScreen as Screen.MainTab).tab,
                         onTabSelected = { newTab ->
-                            currentScreen = Screen.MainTab(newTab)
+                            if ((newTab == "create" || newTab == "chat") && currentUserId.isBlank()) {
+                                viewModel.emitMessage("يرجى تسجيل الدخول برقم هاتفك للمتابعة")
+                                currentScreen = Screen.Login
+                            } else {
+                                currentScreen = Screen.MainTab(newTab)
+                            }
                         }
                     )
                 }
@@ -201,7 +209,14 @@ fun OcaVenteApp(viewModel: MarketplaceViewModel) {
                                         currentScreen = Screen.MainTab("search")
                                     },
                                     onSearchClick = { currentScreen = Screen.MainTab("search") },
-                                    onSellClick = { currentScreen = Screen.MainTab("create") }
+                                    onSellClick = {
+                                        if (currentUserId.isBlank()) {
+                                            viewModel.emitMessage("يرجى تسجيل الدخول برقم هاتفك لنشر إعلانك")
+                                            currentScreen = Screen.Login
+                                        } else {
+                                            currentScreen = Screen.MainTab("create")
+                                        }
+                                    }
                                 )
                                 "search" -> SearchScreen(
                                     viewModel = viewModel,
@@ -243,7 +258,12 @@ fun OcaVenteApp(viewModel: MarketplaceViewModel) {
                                 viewModel = viewModel,
                                 onBack = { currentScreen = Screen.MainTab("home") },
                                 onOpenChat = { lId, sId ->
-                                    currentScreen = Screen.ChatConversation(lId, sId)
+                                    if (currentUserId.isBlank()) {
+                                        viewModel.emitMessage("يرجى تسجيل الدخول برقم هاتفك للتواصل مع البائع")
+                                        currentScreen = Screen.Login
+                                    } else {
+                                        currentScreen = Screen.ChatConversation(lId, sId)
+                                    }
                                 },
                                 onOpenSellerProfile = { sId ->
                                     currentScreen = Screen.SellerProfile(sId)
@@ -275,8 +295,26 @@ fun OcaVenteApp(viewModel: MarketplaceViewModel) {
 
                         is Screen.AuthLanding -> {
                             AuthLandingScreen(
+                                onBrowseAds = { currentScreen = Screen.GuestBrowse },
                                 onRegister = { currentScreen = Screen.Register },
                                 onLogin = { currentScreen = Screen.Login }
+                            )
+                        }
+
+                        is Screen.GuestBrowse -> {
+                            GuestBrowseScreen(
+                                viewModel = viewModel,
+                                onBack = { currentScreen = Screen.AuthLanding },
+                                onAdClick = { id -> currentScreen = Screen.GuestAdDetails(id) }
+                            )
+                        }
+
+                        is Screen.GuestAdDetails -> {
+                            GuestAdDetailsScreen(
+                                listingId = screen.listingId,
+                                viewModel = viewModel,
+                                onBack = { currentScreen = Screen.GuestBrowse },
+                                onLoginClick = { currentScreen = Screen.Login }
                             )
                         }
 
@@ -309,9 +347,7 @@ fun OcaVenteApp(viewModel: MarketplaceViewModel) {
                                 onBack = { currentScreen = Screen.AuthLanding },
                                 onLoggedIn = { currentScreen = Screen.MainTab("home") },
                                 onRegister = { currentScreen = Screen.Register },
-                                onForgotPassword = { currentScreen = Screen.ForgotPassword },
-                                onGoogleLogin = { viewModel.socialAuthUnavailable("Google") },
-                                onAppleLogin = { viewModel.socialAuthUnavailable("Apple") }
+                                onForgotPassword = { currentScreen = Screen.ForgotPassword }
                             )
                         }
 

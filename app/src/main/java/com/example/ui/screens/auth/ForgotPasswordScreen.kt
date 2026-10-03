@@ -89,7 +89,7 @@ fun ForgotPasswordScreen(
                 textAlign = TextAlign.Center
             )
             Text(
-                text = "أدخل البريد الإلكتروني أو رقم الهاتف المرتبط بحسابك لبدء الاستعادة.",
+                text = "أدخل رقم الهاتف المرتبط بحسابك لبدء الاستعادة.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
                 fontSize = 14.sp
@@ -100,8 +100,9 @@ fun ForgotPasswordScreen(
                 value = identifier,
                 onValueChange = { identifier = it; feedback = null },
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("البريد الإلكتروني أو الهاتف") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                label = { Text("رقم الهاتف") },
+                placeholder = { Text("05 55 12 34 56") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                 singleLine = true,
                 enabled = !isSubmitting
             )
