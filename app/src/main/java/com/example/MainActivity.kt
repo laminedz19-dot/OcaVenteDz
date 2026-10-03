@@ -47,6 +47,8 @@ import com.example.ui.screens.profile.SellerProfileScreen
 import com.example.ui.screens.search.SearchScreen
 import com.example.ui.screens.security.SecurityCenterScreen
 import com.example.ui.screens.SplashScreen
+import com.example.ui.screens.guest.GuestBrowseScreen
+import com.example.ui.screens.guest.GuestAdDetailsScreen
 import com.example.ui.theme.OcaVenteTheme
 import com.example.ui.viewmodel.MarketplaceViewModel
 import kotlinx.coroutines.flow.collectLatest
@@ -58,6 +60,8 @@ sealed class Screen {
     data class ChatConversation(val listingId: String, val sellerId: String) : Screen()
     data class SellerProfile(val sellerId: String) : Screen()
     object AuthLanding : Screen()
+    object GuestBrowse : Screen()
+    data class GuestAdDetails(val listingId: String) : Screen()
     object SecurityCenter : Screen()
     object LegalInfo : Screen()
     object Register : Screen()
@@ -131,6 +135,8 @@ fun OcaVenteApp(viewModel: MarketplaceViewModel) {
                     currentScreen = Screen.AuthLanding
                 }
             }
+            is Screen.GuestBrowse -> currentScreen = Screen.AuthLanding
+            is Screen.GuestAdDetails -> currentScreen = Screen.GuestBrowse
             is Screen.AdDetails -> currentScreen = Screen.MainTab("home")
             is Screen.ChatConversation -> currentScreen = Screen.MainTab("chat")
             is Screen.SellerProfile -> currentScreen = Screen.MainTab("home")
@@ -289,9 +295,26 @@ fun OcaVenteApp(viewModel: MarketplaceViewModel) {
 
                         is Screen.AuthLanding -> {
                             AuthLandingScreen(
-                                onBrowseAds = { currentScreen = Screen.MainTab("home") },
+                                onBrowseAds = { currentScreen = Screen.GuestBrowse },
                                 onRegister = { currentScreen = Screen.Register },
                                 onLogin = { currentScreen = Screen.Login }
+                            )
+                        }
+
+                        is Screen.GuestBrowse -> {
+                            GuestBrowseScreen(
+                                viewModel = viewModel,
+                                onBack = { currentScreen = Screen.AuthLanding },
+                                onAdClick = { id -> currentScreen = Screen.GuestAdDetails(id) }
+                            )
+                        }
+
+                        is Screen.GuestAdDetails -> {
+                            GuestAdDetailsScreen(
+                                listingId = screen.listingId,
+                                viewModel = viewModel,
+                                onBack = { currentScreen = Screen.GuestBrowse },
+                                onLoginClick = { currentScreen = Screen.Login }
                             )
                         }
 
