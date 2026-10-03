@@ -10,6 +10,9 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
+import java.io.IOException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 
 data class AuthUser(val uid: String, val email: String?, val displayName: String?, val phoneNumber: String?)
 
@@ -51,7 +54,18 @@ class AuthRepository {
             if (newAccess.isBlank()) { SupabaseSessionStore.clear(); return@withContext Result.success(null) }
             SupabaseSessionStore.save(newAccess, json.optString("refresh_token").ifBlank { refresh }, json.optLong("expires_in", 3600L))
             fetchCurrentUser(newAccess)
-        } catch (e: Exception) { Log.e(TAG, "Restore session error", e); SupabaseSessionStore.clear(); Result.failure(Exception("تعذر استعادة جلسة الدخول", e)) }
+        } catch (e: Exception) {
+            Log.e(TAG, "Restore session error", e)
+            // Keep the persisted session during a temporary network failure.
+            // It is cleared only when Supabase explicitly rejects the refresh token
+            // or when the user chooses Sign out.
+            val message = when (e) {
+                is SocketTimeoutException -> "انتهت مهلة الاتصال؛ ستبقى الجلسة محفوظة وسيُعاد المحاولة لاحقًا."
+                is UnknownHostException, is IOException -> "تعذر الاتصال مؤقتًا؛ ستبقى الجلسة محفوظة حتى يعود الإنترنت."
+                else -> "تعذر التحقق من الجلسة مؤقتًا؛ ستبقى الجلسة محفوظة."
+            }
+            Result.failure(Exception(message, e))
+        }
     }
     private fun fetchCurrentUser(access: String): Result<AuthUser?> {
         val response = http.newCall(Request.Builder().url("${BuildConfig.SUPABASE_URL}/auth/v1/user").get()

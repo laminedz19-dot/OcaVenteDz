@@ -19,6 +19,7 @@ import com.example.data.local.WalletEntity
 import com.example.data.local.WalletTransactionEntity
 import com.example.data.local.TopUpRequestEntity
 import com.example.data.repository.MarketplaceRepository
+import com.example.data.remote.supabase.SupabaseSessionStore
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -101,6 +102,12 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
 
     private suspend fun restoreSavedSession() {
         val result = repository.authService.restoreSession()
+        if (result.isFailure && SupabaseSessionStore.hasSession()) {
+            // Keep the user inside the app during a temporary offline startup.
+            // AuthRepository will retry the persisted refresh token later.
+            Log.w("MarketplaceViewModel", "Session restore deferred: ${result.exceptionOrNull()?.message}")
+            return
+        }
         val uid = result.getOrNull()?.uid?.takeIf { it.isNotBlank() && it != "deleted" }
         if (uid == null) {
             clearSavedUserId()

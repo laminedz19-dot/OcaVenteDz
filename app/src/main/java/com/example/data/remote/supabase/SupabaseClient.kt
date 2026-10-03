@@ -16,7 +16,11 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
+import java.io.IOException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 import java.util.concurrent.TimeUnit
+import kotlin.math.max
 
 class SupabaseClient {
     companion object {
@@ -97,16 +101,10 @@ class SupabaseClient {
         result: (String) -> String
     ): Result<String> = withContext(Dispatchers.IO) {
         try {
-            val input = context.contentResolver.openInputStream(uri)
-                ?: return@withContext Result.failure(Exception("تعذر فتح الصورة"))
-            val bmp = BitmapFactory.decodeStream(input)
-            input.close()
-            if (bmp == null) return@withContext Result.failure(Exception("الصورة غير صالحة"))
-            val out = ByteArrayOutputStream()
-            bmp.compress(Bitmap.CompressFormat.JPEG, 75, out)
+            val imageBytes = compressImage(context, uri)
             val req = Request.Builder()
                 .url("$BASE_URL/storage/v1/object/$bucket/$path")
-                .post(out.toByteArray().toRequestBody("image/jpeg".toMediaType()))
+                .post(imageBytes.toRequestBody("image/jpeg".toMediaType()))
                 .addHeader("apikey", ANON_KEY)
                 .addHeader("Authorization", "Bearer ${accessToken() ?: ANON_KEY}")
                 .addHeader("x-upsert", "true")
@@ -129,8 +127,67 @@ class SupabaseClient {
                 } else Result.success(result(path))
             }
         } catch (e: Exception) {
-            Result.failure(e)
+            Log.e("SupabaseStorage", "Upload exception bucket=$bucket path=$path", e)
+            val message = when (e) {
+                is SocketTimeoutException -> "انتهت مهلة الاتصال أثناء رفع الصورة. حاول مرة أخرى."
+                is UnknownHostException -> "تعذر الوصول إلى خادم التخزين. تحقق من الإنترنت أو جرّب شبكة أخرى."
+                is IOException -> "تعذر الاتصال بخادم التخزين. تحقق من الإنترنت وحاول مرة أخرى."
+                else -> e.message ?: "تعذر تجهيز الصورة أو رفعها. اختر صورة أخرى وحاول مجددًا."
+            }
+            Result.failure(Exception(message, e))
         }
+    }
+
+    /** Compresses large camera/gallery images before network upload. */
+    private fun compressImage(
+        context: Context,
+        uri: Uri,
+        maxDimension: Int = 1600,
+        maxBytes: Int = 2 * 1024 * 1024
+    ): ByteArray {
+        val resolver = context.contentResolver
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        resolver.openInputStream(uri).use { input ->
+            requireNotNull(input) { "تعذر فتح الصورة" }
+            BitmapFactory.decodeStream(input, null, bounds)
+        }
+        require(bounds.outWidth > 0 && bounds.outHeight > 0) { "الصورة غير صالحة" }
+        require(bounds.outWidth <= 12000 && bounds.outHeight <= 12000) { "أبعاد الصورة كبيرة جدًا" }
+
+        var sampleSize = 1
+        while (max(bounds.outWidth / sampleSize, bounds.outHeight / sampleSize) > maxDimension * 2) {
+            sampleSize *= 2
+        }
+        val options = BitmapFactory.Options().apply {
+            inSampleSize = sampleSize
+            inPreferredConfig = Bitmap.Config.ARGB_8888
+        }
+        val decoded = resolver.openInputStream(uri).use { input ->
+            requireNotNull(input) { "تعذر فتح الصورة" }
+            BitmapFactory.decodeStream(input, null, options)
+        } ?: error("الصورة غير صالحة")
+
+        val scale = minOf(1f, maxDimension.toFloat() / decoded.width, maxDimension.toFloat() / decoded.height)
+        val bitmap = if (scale < 1f) {
+            Bitmap.createScaledBitmap(
+                decoded,
+                (decoded.width * scale).toInt().coerceAtLeast(1),
+                (decoded.height * scale).toInt().coerceAtLeast(1),
+                true
+            ).also { decoded.recycle() }
+        } else decoded
+
+        var quality = 82
+        var bytes: ByteArray
+        do {
+            bytes = ByteArrayOutputStream().use { output ->
+                check(bitmap.compress(Bitmap.CompressFormat.JPEG, quality, output)) { "تعذر ضغط الصورة" }
+                output.toByteArray()
+            }
+            quality -= 5
+        } while (bytes.size > maxBytes && quality >= 50)
+        bitmap.recycle()
+        return bytes
     }
 
     suspend fun deleteListingMedia(storagePathOrUrl: String): Result<Unit> = withContext(Dispatchers.IO) {
