@@ -492,8 +492,8 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
 
         viewModelScope.launch {
             try {
-                val authEmail = "${normalizedPhone}@ocaventedz.dz"
-                val authResult = repository.authService.registerWithEmail(authEmail, password)
+                val authPhone = "+213" + normalizedPhone.removePrefix("0")
+                val authResult = repository.authService.registerWithPhone(authPhone, password, cleanName)
                 if (authResult.isFailure) {
                     val errMsg = authResult.exceptionOrNull()?.message ?: "فشل تسجيل الحساب عبر الخدمة السحابية."
                     withContext(Dispatchers.Main) { onError(errMsg) }
@@ -560,16 +560,18 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
 
         viewModelScope.launch {
             val normalizedPhone = normalizeAlgerianPhone(cleanIdentifier)
-            val loginTarget = if (normalizedPhone.length == 10 && normalizedPhone.startsWith("0")) {
-                "${normalizedPhone}@ocaventedz.dz"
-            } else if (android.util.Patterns.EMAIL_ADDRESS.matcher(cleanIdentifier.lowercase()).matches()) {
+            val isPhoneLogin = normalizedPhone.length == 10 && normalizedPhone.startsWith("0")
+            val loginTarget = if (isPhoneLogin) "" else if (android.util.Patterns.EMAIL_ADDRESS.matcher(cleanIdentifier.lowercase()).matches()) {
                 cleanIdentifier.lowercase()
             } else {
                 onError("يرجى إدخال رقم هاتف جزائري صحيح (مثال: 0555123456 أو 06/07).")
                 return@launch
             }
-
-            val authResult = repository.authService.loginWithEmail(loginTarget, password)
+            val authResult = if (isPhoneLogin) {
+                repository.authService.loginWithPhone("+213" + normalizedPhone.removePrefix("0"), password)
+            } else {
+                repository.authService.loginWithEmail(loginTarget, password)
+            }
             if (authResult.isFailure) {
                 val errMsg = authResult.exceptionOrNull()?.message ?: "رقم الهاتف أو كلمة المرور غير صحيحة."
                 withContext(Dispatchers.Main) { onError(errMsg) }
@@ -586,7 +588,7 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
             val localUser = repository.getUserDirect(uid) ?: UserEntity(
                 id = uid,
                 phone = if (normalizedPhone.length == 10) normalizedPhone else "",
-                email = if (!loginTarget.endsWith("@ocaventedz.dz")) cleanIdentifier else "",
+                email = if (!isPhoneLogin) cleanIdentifier else "",
                 name = authUser.displayName ?: "مستخدم OcaVenteDz",
                 avatarUrl = "",
                 wilaya = "الجزائر",
@@ -637,12 +639,14 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
         }
 
         val normalizedPhone = normalizeAlgerianPhone(cleanIdentifier)
-        val targetEmail = if (normalizedPhone.length == 10 && normalizedPhone.startsWith("0")) {
-            "${normalizedPhone}@ocaventedz.dz"
-        } else if (android.util.Patterns.EMAIL_ADDRESS.matcher(cleanIdentifier.lowercase()).matches()) {
+        if (normalizedPhone.length == 10 && normalizedPhone.startsWith("0")) {
+            onError("استعادة كلمة المرور عبر رقم الهاتف ستتوفر عبر رمز SMS قريبًا. استخدم البريد الإلكتروني إن كان مرتبطًا بالحساب.")
+            return
+        }
+        val targetEmail = if (android.util.Patterns.EMAIL_ADDRESS.matcher(cleanIdentifier.lowercase()).matches()) {
             cleanIdentifier.lowercase()
         } else {
-            onError("يرجى إدخال رقم هاتف جزائري صحيح (مثال: 0555123456).")
+            onError("يرجى إدخال بريد إلكتروني صحيح لاستعادة كلمة المرور.")
             return
         }
 

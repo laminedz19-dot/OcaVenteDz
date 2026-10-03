@@ -98,6 +98,30 @@ class AuthRepository {
         }
     }
 
+    suspend fun registerWithPhone(phone: String, password: String, displayName: String): Result<AuthUser> = withContext(Dispatchers.IO) {
+        try {
+            val body = JSONObject().apply {
+                put("phone", phone)
+                put("password", password)
+                put("data", JSONObject().put("name", displayName.trim()))
+            }
+            http.newCall(request("signup", body)).execute().use { resp ->
+                val text = resp.body?.string().orEmpty()
+                if (!resp.isSuccessful) return@withContext Result.failure(Exception(parseAuthErrorMessage(text, resp.code)))
+                val json = JSONObject(text)
+                val userObj = json.optJSONObject("user") ?: json
+                val uid = userObj.optString("id").takeIf { it.isNotBlank() }
+                    ?: return@withContext Result.failure(Exception("لم يُرجع خادم المصادقة معرّف مستخدم صالح."))
+                val accessToken = json.optString("access_token")
+                if (accessToken.isNotBlank()) SupabaseSessionStore.save(accessToken, json.optString("refresh_token"), json.optLong("expires_in", 3600L), uid)
+                Result.success(AuthUser(uid, userObj.optString("email").takeIf { it.isNotBlank() }, displayName.trim(), userObj.optString("phone").takeIf { it.isNotBlank() } ?: phone))
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Phone registration failure: ${e.message}")
+            Result.failure(mapNetworkException(e))
+        }
+    }
+
     suspend fun loginWithEmail(email: String, password: String): Result<AuthUser> = withContext(Dispatchers.IO) {
         val cleanEmail = email.trim().lowercase()
         try {
@@ -185,6 +209,27 @@ class AuthRepository {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Admin login error: ${e.message}")
+            Result.failure(mapNetworkException(e))
+        }
+    }
+
+    suspend fun loginWithPhone(phone: String, password: String): Result<AuthUser> = withContext(Dispatchers.IO) {
+        try {
+            val body = JSONObject().put("phone", phone).put("password", password)
+            http.newCall(request("token?grant_type=password", body)).execute().use { resp ->
+                val text = resp.body?.string().orEmpty()
+                if (!resp.isSuccessful) return@withContext Result.failure(Exception(parseAuthErrorMessage(text, resp.code)))
+                val json = JSONObject(text)
+                val userObj = json.optJSONObject("user") ?: json
+                val accessToken = json.optString("access_token")
+                val uid = userObj.optString("id").takeIf { it.isNotBlank() }
+                    ?: SupabaseSessionStore.decodeUserId(accessToken)
+                    ?: return@withContext Result.failure(Exception("تعذر استخراج معرّف الحساب من بيانات الدخول."))
+                if (accessToken.isNotBlank()) SupabaseSessionStore.save(accessToken, json.optString("refresh_token"), json.optLong("expires_in", 3600L), uid)
+                Result.success(AuthUser(uid, userObj.optString("email").takeIf { it.isNotBlank() }, userObj.optJSONObject("user_metadata")?.optString("name"), userObj.optString("phone").takeIf { it.isNotBlank() } ?: phone))
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Phone login failure: ${e.message}")
             Result.failure(mapNetworkException(e))
         }
     }
