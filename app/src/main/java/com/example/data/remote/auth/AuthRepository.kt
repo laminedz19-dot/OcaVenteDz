@@ -352,6 +352,8 @@ class AuthRepository {
                 "يرجى تأكيد البريد الإلكتروني لتفعيل حسابك أولاً."
             code == "user_already_exists" ->
                 "المستخدم مسجل مسبقاً في النظام."
+            rawMsg.contains("phone signups are disabled", ignoreCase = true) || rawMsg.contains("phone provider is disabled", ignoreCase = true) ->
+                "تسجيل الحساب برقم الهاتف غير مفعّل في إعدادات Supabase. فعّل Phone Provider ثم أعد المحاولة."
             statusCode == 429 ->
                 "تم تجاوز عدد المحاولات المسموح به. يرجى الانتظار بضع دقائق ثم المحاولة مجدداً."
             statusCode in 500..599 ->
