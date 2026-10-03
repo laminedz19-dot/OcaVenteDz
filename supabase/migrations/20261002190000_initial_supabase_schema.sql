@@ -295,15 +295,35 @@ create policy orders_insert_buyer on public.orders for insert to authenticated w
 drop policy if exists orders_update_buyer_seller_admin on public.orders;
 create policy orders_update_buyer_seller_admin on public.orders for update to authenticated using (buyer_id = auth.uid() or seller_id = auth.uid() or public.is_admin()) with check (buyer_id = auth.uid() or seller_id = auth.uid() or public.is_admin());
 
--- Public media bucket; database RLS still controls all business data.
+-- Public marketplace media and private payment receipts use separate buckets.
 insert into storage.buckets (id, name, public)
-values ('app-media', 'app-media', true)
+values ('oca-vente-media', 'oca-vente-media', true)
 on conflict (id) do update set public = true;
-drop policy if exists storage_read_app_media on storage.objects;
-create policy storage_read_app_media on storage.objects for select using (bucket_id = 'app-media');
-drop policy if exists storage_insert_app_media_authenticated on storage.objects;
-create policy storage_insert_app_media_authenticated on storage.objects for insert to authenticated with check (bucket_id = 'app-media');
-drop policy if exists storage_update_app_media_authenticated on storage.objects;
-create policy storage_update_app_media_authenticated on storage.objects for update to authenticated using (bucket_id = 'app-media') with check (bucket_id = 'app-media');
-drop policy if exists storage_delete_app_media_admin on storage.objects;
-create policy storage_delete_app_media_admin on storage.objects for delete to authenticated using (bucket_id = 'app-media' and public.is_admin());
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('oca-vente-private', 'oca-vente-private', false, 5242880, array['image/jpeg', 'image/png', 'image/webp']::text[])
+on conflict (id) do update set public = false;
+
+drop policy if exists "oca media upload own folder" on storage.objects;
+create policy "oca media upload own folder" on storage.objects for insert to authenticated
+with check (bucket_id = 'oca-vente-media' and (storage.foldername(name))[1] = (select auth.uid()::text));
+drop policy if exists "oca media update own folder" on storage.objects;
+create policy "oca media update own folder" on storage.objects for update to authenticated
+using (bucket_id = 'oca-vente-media' and (storage.foldername(name))[1] = (select auth.uid()::text))
+with check (bucket_id = 'oca-vente-media' and (storage.foldername(name))[1] = (select auth.uid()::text));
+drop policy if exists "oca media delete own folder" on storage.objects;
+create policy "oca media delete own folder" on storage.objects for delete to authenticated
+using (bucket_id = 'oca-vente-media' and (storage.foldername(name))[1] = (select auth.uid()::text));
+
+drop policy if exists "oca private upload own folder" on storage.objects;
+create policy "oca private upload own folder" on storage.objects for insert to authenticated
+with check (bucket_id = 'oca-vente-private' and (storage.foldername(name))[1] = (select auth.uid()::text));
+drop policy if exists "oca private read own or admin" on storage.objects;
+create policy "oca private read own or admin" on storage.objects for select to authenticated
+using (bucket_id = 'oca-vente-private' and ((storage.foldername(name))[1] = (select auth.uid()::text) or public.is_admin()));
+drop policy if exists "oca private update own folder" on storage.objects;
+create policy "oca private update own folder" on storage.objects for update to authenticated
+using (bucket_id = 'oca-vente-private' and (storage.foldername(name))[1] = (select auth.uid()::text))
+with check (bucket_id = 'oca-vente-private' and (storage.foldername(name))[1] = (select auth.uid()::text));
+drop policy if exists "oca private delete own folder" on storage.objects;
+create policy "oca private delete own folder" on storage.objects for delete to authenticated
+using (bucket_id = 'oca-vente-private' and (storage.foldername(name))[1] = (select auth.uid()::text));

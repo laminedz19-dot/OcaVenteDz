@@ -758,7 +758,8 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
         videoUrl: String,
         packageType: String, // "STANDARD", "FEATURED", "URGENT"
         paymentMethod: String, // "WALLET", "EDAHABIA", "CIB", "BARIDIMOB"
-        onSuccess: (String) -> Unit
+        onSuccess: (String) -> Unit,
+        onError: (String) -> Unit = {}
     ) {
         viewModelScope.launch {
             val user = repository.getUserDirect(_currentUserId.value) ?: UserEntity(
@@ -783,19 +784,30 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
             val listingId = UUID.randomUUID().toString()
             val now = System.currentTimeMillis()
 
+            var imageUploadError: String? = null
             val uploadedImages = images.mapIndexed { index, imgStr ->
                 if (imgStr.startsWith("content://") || imgStr.startsWith("file://")) {
                     try {
                         val uploadRes = repository.supabaseClient.uploadListingImage(
-                            getApplication(), Uri.parse(imgStr), "listing_${listingId}_$index"
+                            getApplication(), user.id, Uri.parse(imgStr), "listing_${listingId}_$index"
                         )
-                        if (uploadRes.isSuccess) uploadRes.getOrNull().orEmpty() else imgStr
-                    } catch (_: Exception) {
-                        imgStr
+                        if (uploadRes.isSuccess) uploadRes.getOrNull().orEmpty()
+                        else {
+                            imageUploadError = uploadRes.exceptionOrNull()?.message ?: "فشل رفع صورة الإعلان"
+                            ""
+                        }
+                    } catch (error: Exception) {
+                        imageUploadError = error.message ?: "فشل رفع صورة الإعلان"
+                        ""
                     }
                 } else {
                     imgStr
                 }
+            }
+            if (imageUploadError != null) {
+                emitMessage(imageUploadError!!)
+                withContext(Dispatchers.Main) { onError(imageUploadError!!) }
+                return@launch
             }
             _imageUploadProgress.value = null
 
@@ -848,9 +860,16 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
 
     suspend fun uploadAdImages(vararg unused: Any): Result<List<String>> = Result.failure(IllegalStateException("رفع الصور المتعدد غير متاح حالياً."))
 
-    suspend fun deleteAdImage(imageStoragePathOrUrl: String): Result<Unit> = Result.success(Unit)
+    suspend fun deleteAdImage(imageStoragePathOrUrl: String): Result<Unit> =
+        repository.supabaseClient.deleteListingMedia(imageStoragePathOrUrl)
 
-    suspend fun deleteAllAdImages(listingId: String): Result<Int> = Result.success(0)
+    suspend fun deleteAllAdImages(listingId: String): Result<Int> {
+        val images = repository.getListingDirect(listingId)?.imagesJson.orEmpty()
+            .split(",").map(String::trim).filter(String::isNotBlank)
+        var deleted = 0
+        images.forEach { if (deleteAdImage(it).isSuccess) deleted++ }
+        return Result.success(deleted)
+    }
 
     // Chat Actions
     fun sendMessage(listingId: String, receiverId: String, content: String) {
@@ -1057,5 +1076,10 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
     /**
      * Resolves a الخدمة السحابية Storage receipt path into an authenticated download URL.
      */
-    fun resolveReceiptUrl(storagePathOrUrl: String, onResult: (String?) -> Unit) { onResult(storagePathOrUrl) }
+    fun resolveReceiptUrl(storagePathOrUrl: String, onResult: (String?) -> Unit) {
+        viewModelScope.launch {
+            val resolved = repository.supabaseClient.createSignedReceiptUrl(storagePathOrUrl).getOrNull()
+            withContext(Dispatchers.Main) { onResult(resolved) }
+        }
+    }
 }

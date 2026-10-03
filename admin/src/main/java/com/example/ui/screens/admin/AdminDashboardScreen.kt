@@ -726,12 +726,8 @@ fun AdminDashboardScreen(
                                                     .clip(RoundedCornerShape(8.dp))
                                                     .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                                                     .clickable {
-                                                        if (req.receiptImageUri.startsWith("http://") || req.receiptImageUri.startsWith("https://") || req.receiptImageUri.startsWith("data:")) {
-                                                            previewReceiptUrl = req.receiptImageUri
-                                                        } else {
-                                                            viewModel.resolveReceiptUrl(req.receiptImageUri) { resolved ->
-                                                                previewReceiptUrl = resolved ?: req.receiptImageUri
-                                                            }
+                                                        viewModel.resolveReceiptUrl(req.receiptImageUri) { resolved ->
+                                                            previewReceiptUrl = resolved
                                                         }
                                                     }
                                                     .padding(8.dp),
@@ -780,12 +776,8 @@ fun AdminDashboardScreen(
                                             if (req.receiptImageUri.isNotBlank()) {
                                                 OutlinedButton(
                                                     onClick = {
-                                                        if (req.receiptImageUri.startsWith("http://") || req.receiptImageUri.startsWith("https://") || req.receiptImageUri.startsWith("data:")) {
-                                                            previewReceiptUrl = req.receiptImageUri
-                                                        } else {
-                                                            viewModel.resolveReceiptUrl(req.receiptImageUri) { resolved ->
-                                                                previewReceiptUrl = resolved ?: req.receiptImageUri
-                                                            }
+                                                        viewModel.resolveReceiptUrl(req.receiptImageUri) { resolved ->
+                                                            previewReceiptUrl = resolved
                                                         }
                                                     },
                                                     modifier = Modifier.height(36.dp),

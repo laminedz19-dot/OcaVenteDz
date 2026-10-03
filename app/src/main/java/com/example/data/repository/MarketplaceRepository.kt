@@ -199,8 +199,9 @@ class MarketplaceRepository(
         val storedReceipt = if (receiptImageUriString.isNotBlank()) {
             val uploadResult = supabaseClient.uploadReceiptImage(
                 context,
+                uid,
                 Uri.parse(receiptImageUriString),
-                "receipt_${uid}_${System.currentTimeMillis()}"
+                "receipt_${System.currentTimeMillis()}"
             )
             uploadResult.getOrElse { error ->
                 return@withContext Result.failure(

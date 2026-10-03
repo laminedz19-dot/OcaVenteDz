@@ -78,8 +78,64 @@ class SupabaseClient {
     suspend fun getPlatformSettings(): Result<PlatformSettingsEntity?> = call("rest/v1/platform_settings?select=*&limit=1").map { text -> rows(text).let { if(it.length()==0)null else { val o=it.getJSONObject(0); PlatformSettingsEntity(standardAdFeeDzd=o.optInt("standard_ad_fee_dzd",400),featuredAdFeeDzd=o.optInt("featured_ad_fee_dzd",600),urgentAdFeeDzd=o.optInt("urgent_ad_fee_dzd",1000),adDurationDays=o.optInt("ad_duration_days",30),autoPublishAfterPayment=o.optBoolean("auto_publish_after_payment",false)) } } }
     suspend fun saveOrder(x: OrderEntity) = call("rest/v1/orders", "POST", JSONObject().apply { put("id",x.id);put("order_number",x.orderNumber);put("listing_id",x.listingId);put("seller_id",x.sellerId);put("buyer_id",x.buyerId);put("total_amount_dzd",x.totalAmountDzd);put("status",x.status);put("is_paid",x.isPaid);put("tracking_number",x.trackingNumber) }).map { x.id }
     suspend fun updateOrderStatus(id: String,status:String,note:String,tracking:String?) = call("rest/v1/orders?id=eq.$id", "PATCH", JSONObject().apply { put("status",status);put("tracking_number",tracking ?: JSONObject.NULL) }).map { }
-    suspend fun uploadListingImage(context: Context, uri: Uri, name: String) = upload(context, uri, "listings/$name.jpg")
-    suspend fun uploadReceiptImage(context: Context, uri: Uri, name: String) = upload(context, uri, "receipts/$name.jpg")
-    private suspend fun upload(context: Context, uri: Uri, path: String): Result<String> = withContext(Dispatchers.IO) { try { val input=context.contentResolver.openInputStream(uri) ?: return@withContext Result.failure(Exception("تعذر فتح الصورة")); val bmp=BitmapFactory.decodeStream(input); input.close(); if(bmp==null)return@withContext Result.failure(Exception("الصورة غير صالحة")); val out=ByteArrayOutputStream(); bmp.compress(Bitmap.CompressFormat.JPEG,75,out); val req=Request.Builder().url("$BASE_URL/storage/v1/object/app-media/$path").post(out.toByteArray().toRequestBody("image/jpeg".toMediaType())).addHeader("apikey",ANON_KEY).addHeader("Authorization","Bearer ${accessToken() ?: ANON_KEY}").addHeader("x-upsert","true").build(); val r=http.newCall(req).execute(); if(!r.isSuccessful)Result.failure(Exception("فشل رفع الملف: ${r.body?.string()}")) else Result.success("$BASE_URL/storage/v1/object/public/app-media/$path") } catch(e:Exception){Result.failure(e)} }
+    suspend fun uploadListingImage(context: Context, ownerId: String, uri: Uri, name: String) =
+        upload(context, "oca-vente-media", "$ownerId/listings/$name.jpg", uri) { path ->
+            "$BASE_URL/storage/v1/object/public/oca-vente-media/$path"
+        }
+
+    suspend fun uploadReceiptImage(context: Context, ownerId: String, uri: Uri, name: String) =
+        upload(context, "oca-vente-private", "$ownerId/receipts/$name.jpg", uri) { path ->
+            "oca-vente-private/$path"
+        }
+
+    private suspend fun upload(
+        context: Context,
+        bucket: String,
+        path: String,
+        uri: Uri,
+        result: (String) -> String
+    ): Result<String> = withContext(Dispatchers.IO) {
+        try {
+            val input = context.contentResolver.openInputStream(uri)
+                ?: return@withContext Result.failure(Exception("تعذر فتح الصورة"))
+            val bmp = BitmapFactory.decodeStream(input)
+            input.close()
+            if (bmp == null) return@withContext Result.failure(Exception("الصورة غير صالحة"))
+            val out = ByteArrayOutputStream()
+            bmp.compress(Bitmap.CompressFormat.JPEG, 75, out)
+            val req = Request.Builder()
+                .url("$BASE_URL/storage/v1/object/$bucket/$path")
+                .post(out.toByteArray().toRequestBody("image/jpeg".toMediaType()))
+                .addHeader("apikey", ANON_KEY)
+                .addHeader("Authorization", "Bearer ${accessToken() ?: ANON_KEY}")
+                .addHeader("x-upsert", "true")
+                .build()
+            http.newCall(req).execute().let { response ->
+                val body = response.body?.string().orEmpty()
+                if (!response.isSuccessful) Result.failure(Exception("فشل رفع الملف: $body"))
+                else Result.success(result(path))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun deleteListingMedia(storagePathOrUrl: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val path = storagePathOrUrl.trim()
+                .removePrefix("$BASE_URL/storage/v1/object/public/oca-vente-media/")
+                .removePrefix("oca-vente-media/")
+            if (path.isBlank() || path.startsWith("http") || path.startsWith("content://")) {
+                return@withContext Result.failure(Exception("مسار صورة الإعلان غير صالح"))
+            }
+            val response = http.newCall(
+                Request.Builder().url("$BASE_URL/storage/v1/object/oca-vente-media/$path")
+                    .delete().addHeader("apikey", ANON_KEY)
+                    .addHeader("Authorization", "Bearer ${accessToken() ?: ANON_KEY}").build()
+            ).execute()
+            if (response.isSuccessful) Result.success(Unit)
+            else Result.failure(Exception("فشل حذف صورة الإعلان: ${response.body?.string().orEmpty()}"))
+        } catch (e: Exception) { Result.failure(e) }
+    }
 }
 private fun String.toInstantOrZero(): Long = try { java.time.Instant.parse(this).toEpochMilli() } catch (_: Exception) { 0L }
