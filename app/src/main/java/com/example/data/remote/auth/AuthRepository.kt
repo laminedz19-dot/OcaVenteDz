@@ -61,6 +61,10 @@ class AuthRepository {
             val body = JSONObject().apply {
                 put("email", cleanEmail)
                 put("create_user", shouldCreateUser)
+                val options = JSONObject().apply {
+                    put("email_redirect_to", "ocaventedz://auth")
+                }
+                put("options", options)
             }
             val response = http.newCall(authRequest("otp", body)).execute()
             val text = response.body?.string().orEmpty()

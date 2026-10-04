@@ -162,6 +162,12 @@ fun LoginScreen(
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                            Text(
+                                text = "💡 ملاحظة: إذا وصلتك رسالة بها رابط (Sign in) بدون رمز 6 أرقام، فهذا يعني أن قالب البريد في Supabase يحتاج لتفعيل {{ .Token }}. يمكنك التبديل فوراً لتبويب 'كلمة المرور' للدخول السريع.",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                lineHeight = 16.sp
+                            )
                         }
                     }
 
