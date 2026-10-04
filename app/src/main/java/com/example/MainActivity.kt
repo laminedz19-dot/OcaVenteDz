@@ -79,6 +79,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
+        intent?.data?.let { handleAuthUri(it) }
+
         setContent {
             OcaVenteTheme {
                 val currentLang by viewModel.language.collectAsState()
@@ -88,6 +90,32 @@ class MainActivity : ComponentActivity() {
                 CompositionLocalProvider(LocalLayoutDirection provides layoutDirection) {
                     OcaVenteApp(viewModel = viewModel)
                 }
+            }
+        }
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        intent.data?.let { handleAuthUri(it) }
+    }
+
+    private fun handleAuthUri(uri: android.net.Uri) {
+        val target = uri.fragment ?: uri.query.orEmpty()
+        if (target.contains("access_token")) {
+            val params = target.split("&").associate { param ->
+                val parts = param.split("=")
+                if (parts.size >= 2) parts[0] to parts[1] else "" to ""
+            }
+            val access = params["access_token"]
+            val refresh = params["refresh_token"]
+            if (!access.isNullOrBlank()) {
+                com.example.data.remote.supabase.SupabaseSessionStore.save(
+                    access = access,
+                    refresh = refresh.orEmpty(),
+                    userId = params["user_id"].orEmpty(),
+                    expiresInSeconds = 3600L
+                )
+                viewModel.refreshSession()
             }
         }
     }

@@ -99,6 +99,12 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
         }
     }
 
+    fun refreshSession() {
+        viewModelScope.launch {
+            restoreSavedSession()
+        }
+    }
+
     private suspend fun restoreSavedSession() {
         val result = repository.authService.restoreSession()
         val uid = result.getOrNull()?.uid?.takeIf { it.isNotBlank() && it != "deleted" }
