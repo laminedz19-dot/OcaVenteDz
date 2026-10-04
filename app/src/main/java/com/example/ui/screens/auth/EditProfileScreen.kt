@@ -38,7 +38,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.local.UserEntity
-import com.example.data.model.AlgeriaWilayas
+import com.example.data.models.AlgeriaWilayas
 import com.example.ui.theme.EmeraldPrimary
 import com.example.ui.viewmodel.MarketplaceViewModel
 

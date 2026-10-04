@@ -15,7 +15,7 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Login
-import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -91,7 +91,7 @@ fun LoginScreen(
                 fontWeight = FontWeight.Bold
             )
             Text(
-                text = "أدخل بريدك الإلكتروني وكلمة المرور لتسجيل الدخول إلى حسابك.",
+                text = "أدخل رقم هاتفك وكلمة المرور لتسجيل الدخول إلى حسابك.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
                 fontSize = 14.sp
@@ -102,9 +102,10 @@ fun LoginScreen(
                 value = identifier,
                 onValueChange = { identifier = it; errorMessage = null },
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("البريد الإلكتروني") },
-                leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                label = { Text("رقم الهاتف") },
+                placeholder = { Text("05 55 12 34 56") },
+                leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                 singleLine = true,
                 enabled = !isSubmitting
             )
@@ -128,7 +129,7 @@ fun LoginScreen(
             Button(
                 onClick = {
                     if (identifier.isBlank()) {
-                        errorMessage = "يرجى إدخال البريد الإلكتروني"
+                        errorMessage = "يرجى إدخال رقم الهاتف"
                         return@Button
                     }
                     if (password.isBlank()) {

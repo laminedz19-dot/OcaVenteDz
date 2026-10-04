@@ -37,7 +37,6 @@ import com.example.ui.screens.auth.ForgotPasswordScreen
 import com.example.ui.screens.auth.ChangePasswordScreen
 import com.example.ui.screens.auth.EditProfileScreen
 import com.example.ui.screens.auth.RegisterScreen
-import com.example.ui.screens.auth.EmailVerificationScreen
 import com.example.ui.screens.chat.ChatScreen
 import com.example.ui.screens.create.CreateAdScreen
 import com.example.ui.screens.details.AdDetailsScreen
@@ -66,7 +65,6 @@ sealed class Screen {
     object SecurityCenter : Screen()
     object LegalInfo : Screen()
     object Register : Screen()
-    data class EmailVerification(val email: String) : Screen()
     object Login : Screen()
     object ForgotPassword : Screen()
     object EditProfile : Screen()
@@ -109,7 +107,7 @@ fun OcaVenteApp(viewModel: MarketplaceViewModel) {
 
     LaunchedEffect(currentUserId) {
         if (currentUserId.isNotBlank() && currentUserId != "deleted") {
-            if (currentScreen is Screen.AuthLanding || currentScreen is Screen.Login || currentScreen is Screen.Register || currentScreen is Screen.EmailVerification) {
+            if (currentScreen is Screen.AuthLanding || currentScreen is Screen.Login || currentScreen is Screen.Register) {
                 currentScreen = Screen.MainTab("home")
             }
         }
@@ -146,7 +144,6 @@ fun OcaVenteApp(viewModel: MarketplaceViewModel) {
             is Screen.SecurityCenter -> currentScreen = Screen.MainTab("profile")
             is Screen.LegalInfo -> currentScreen = Screen.MainTab("profile")
             is Screen.Register -> currentScreen = Screen.AuthLanding
-            is Screen.EmailVerification -> currentScreen = Screen.Register
             is Screen.Login -> currentScreen = Screen.AuthLanding
             is Screen.ForgotPassword -> currentScreen = Screen.Login
             is Screen.EditProfile -> currentScreen = Screen.MainTab("profile")
@@ -234,10 +231,10 @@ fun OcaVenteApp(viewModel: MarketplaceViewModel) {
                                 )
                                 "chat" -> {
                                     val allListings by viewModel.adminListings.collectAsState()
-                                    val firstListing = allListings.firstOrNull()
+                                    val demoListing = allListings.firstOrNull()
                                     ChatScreen(
-                                        listingId = firstListing?.id.orEmpty(),
-                                        sellerId = firstListing?.userId.orEmpty(),
+                                        listingId = demoListing?.id ?: "list_1",
+                                        sellerId = demoListing?.userId ?: "user_yacine",
                                         viewModel = viewModel,
                                         onBack = { currentScreen = Screen.MainTab("home") }
                                     )
@@ -340,19 +337,10 @@ fun OcaVenteApp(viewModel: MarketplaceViewModel) {
                                 viewModel = viewModel,
                                 onBack = { currentScreen = Screen.AuthLanding },
                                 onRegistered = { currentScreen = Screen.MainTab("home") },
-                                onVerificationRequired = { email -> currentScreen = Screen.EmailVerification(email) },
                                 onLogin = { currentScreen = Screen.Login }
                             )
                         }
 
-                        is Screen.EmailVerification -> {
-                            EmailVerificationScreen(
-                                email = screen.email,
-                                viewModel = viewModel,
-                                onBack = { currentScreen = Screen.Register },
-                                onVerified = { currentScreen = Screen.MainTab("home") }
-                            )
-                        }
                         is Screen.Login -> {
                             LoginScreen(
                                 viewModel = viewModel,

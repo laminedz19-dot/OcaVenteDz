@@ -79,63 +79,60 @@ class MarketplaceRepository(
         packageType: String, // "STANDARD", "FEATURED", "URGENT"
         paymentMethod: String // "WALLET", "EDAHABIA", "CIB", "BARIDIMOB"
     ): Result<PaymentOrderEntity> {
+        if (paymentMethod != "WALLET") {
+            return Result.failure(Exception("وسيلة الدفع غير مفعّلة حتى يتم ربط مزود دفع موثوق."))
+        }
+        val settings = db.settingsDao().getSettingsDirect() ?: PlatformSettingsEntity()
+        val fee = when (packageType) {
+            "FEATURED" -> settings.featuredAdFeeDzd
+            "URGENT" -> settings.urgentAdFeeDzd
+            else -> settings.standardAdFeeDzd
+        }
+
         val now = System.currentTimeMillis()
-        val rpcRes = supabaseClient.rpcPayAndSubmitListing(listingId, packageType, paymentMethod)
-        if (rpcRes.isFailure) {
-            val err = rpcRes.exceptionOrNull()
-            return Result.failure(Exception(err?.message ?: "فشلت عملية الدفع وتحديث الإعلان في الخادم السحابي.", err))
-        }
-
-        val json = rpcRes.getOrNull()
-        val paymentId = json?.optString("payment_id")?.takeIf { it.isNotBlank() }
-            ?: ("PAY_" + UUID.randomUUID().toString().take(8).uppercase())
-        val newStatus = json?.optString("status")?.takeIf { it.isNotBlank() } ?: "PUBLISHED"
-        val fee = json?.optInt("amount", 0)?.takeIf { it > 0 } ?: when (packageType) {
-            "FEATURED" -> 600
-            "URGENT" -> 1000
-            else -> 400
-        }
-
-        val order = PaymentOrderEntity(
-            paymentId = paymentId,
-            userId = userId,
-            listingId = listingId,
-            amount = fee,
-            currency = "DZD",
-            status = "SUCCESS",
-            provider = paymentMethod,
-            transactionReference = paymentId,
-            createdAt = now,
-            completedAt = now
-        )
-
+        val paymentId = "PAY_" + UUID.randomUUID().toString().take(8).uppercase()
         return db.withTransaction {
             val listing = db.listingDao().getListingByIdDirect(listingId)
                 ?: return@withTransaction Result.failure(Exception("الإعلان غير موجود."))
-
+            if (listing.userId != userId) {
+                return@withTransaction Result.failure(Exception("لا تملك هذا الإعلان."))
+            }
+            if (db.walletDao().debitIfSufficient(userId, fee, now) != 1) {
+                val balance = db.walletDao().getWalletDirect(userId)?.balanceDzd ?: 0
+                return@withTransaction Result.failure(Exception("رصيد المحفظة غير كافٍ. الرصيد الحالي: $balance دج والمطلوب: $fee دج"))
+            }
+            db.walletDao().insertTransaction(
+                WalletTransactionEntity(
+                    id = "TX_" + UUID.randomUUID().toString().take(8),
+                    userId = userId,
+                    type = "AD_PAYMENT",
+                    amount = -fee,
+                    description = "دفع رسوم نشر إعلان ($packageType)",
+                    referenceId = paymentId,
+                    timestamp = now
+                )
+            )
+            val order = PaymentOrderEntity(
+                paymentId = paymentId,
+                userId = userId,
+                listingId = listingId,
+                amount = fee,
+                currency = "DZD",
+                status = "SUCCESS",
+                provider = "WALLET",
+                transactionReference = paymentId,
+                createdAt = now,
+                completedAt = now
+            )
             db.paymentDao().insertPayment(order)
             db.listingDao().insertListing(listing.copy(
-                status = newStatus,
+                status = if (settings.autoPublishAfterPayment) "PUBLISHED" else "UNDER_REVIEW",
                 isPaid = true,
                 publishingFeeDzd = fee,
                 packageType = packageType,
                 isFeatured = packageType != "STANDARD",
                 isUrgent = packageType == "URGENT"
             ))
-            if (paymentMethod == "WALLET") {
-                db.walletDao().debitIfSufficient(userId, fee, now)
-                db.walletDao().insertTransaction(
-                    WalletTransactionEntity(
-                        id = "TX_" + UUID.randomUUID().toString().take(8),
-                        userId = userId,
-                        type = "AD_PAYMENT",
-                        amount = -fee,
-                        description = "دفع رسوم نشر إعلان ($packageType)",
-                        referenceId = paymentId,
-                        timestamp = now
-                    )
-                )
-            }
             Result.success(order)
         }
     }
@@ -179,55 +176,52 @@ class MarketplaceRepository(
     }
 
     /**
-     * Approves top-up request via transactional Supabase RPC (approve_top_up)
-     * and updates local Room cache upon success.
+     * Approves top-up request: updates Supabase, الخدمة السحابية, and Room cache.
+     * Also credits the user's wallet in Supabase and Room!
      */
     suspend fun approveTopUpRequest(requestId: String, adminNote: String = "تم التحقق من الوصل بنجاح"): Result<String> {
         val note = adminNote.ifBlank { "تم التحقق من الوصل بنجاح" }
-        val rpcRes = supabaseClient.rpcApproveTopUp(requestId, note)
-        if (rpcRes.isFailure) {
-            val err = rpcRes.exceptionOrNull()
-            return Result.failure(Exception(err?.message ?: "فشل اعتماد طلب الشحن في الخادم السحابي.", err))
+        val now = System.currentTimeMillis()
+
+        // 1. Call server-side atomic RPC with double-approval protection
+        val cloudResult = supabaseClient.approveTopUpRequest(requestId, note)
+        if (cloudResult.isFailure) {
+            return Result.failure(cloudResult.exceptionOrNull() ?: Exception("فشل اعتماد طلب الشحن على الخادم."))
         }
 
-        val now = System.currentTimeMillis()
+        // 2. Update local Room cache on success
         try {
             db.topUpRequestDao().updateStatus(requestId, "APPROVED", note, now)
             val req = db.topUpRequestDao().getRequestById(requestId)
             if (req != null && req.amountDzd > 0) {
                 db.walletDao().creditWallet(req.userId, req.amountDzd, now)
-                db.walletDao().insertTransaction(
-                    WalletTransactionEntity(
-                        id = "tx_" + UUID.randomUUID().toString().replace("-", "").take(10),
-                        userId = req.userId,
-                        type = "TOPUP",
-                        amount = req.amountDzd,
-                        description = "شحن رصيد - وصل تحويل ${req.provider} (مرجع: ${req.reference.ifBlank { req.id }})",
-                        referenceId = req.id,
-                        timestamp = now
-                    )
+                val tx = WalletTransactionEntity(
+                    id = "tx_" + UUID.randomUUID().toString().replace("-", "").take(10),
+                    userId = req.userId,
+                    type = "TOPUP",
+                    amount = req.amountDzd,
+                    description = "شحن رصيد معتمد - ${req.provider} (مرجع: ${req.reference.ifBlank { req.id }})",
+                    referenceId = req.id,
+                    timestamp = now
                 )
+                db.walletDao().insertTransaction(tx)
             }
         } catch (e: Exception) {
             android.util.Log.w("MarketplaceRepository", "Local cache update warning: ${e.message}")
         }
 
-        return Result.success("تمت الموافقة على طلب الشحن وتحديث الحالة في الخادم السحابي بنجاح ✓")
+        return Result.success("تمت الموافقة على طلب الشحن وشحن الرصيد بنجاح ✓")
     }
 
-    /**
-     * Rejects top-up request via transactional Supabase RPC (reject_top_up)
-     * and updates local Room cache upon success.
-     */
     suspend fun rejectTopUpRequest(requestId: String, reason: String): Result<String> {
         val note = reason.ifBlank { "الوصل غير مطابق أو غير واضح" }
-        val rpcRes = supabaseClient.rpcRejectTopUp(requestId, note)
-        if (rpcRes.isFailure) {
-            val err = rpcRes.exceptionOrNull()
-            return Result.failure(Exception(err?.message ?: "فشل رفض طلب الشحن في الخادم السحابي.", err))
+        val now = System.currentTimeMillis()
+
+        val cloudResult = supabaseClient.rejectTopUpRequest(requestId, note)
+        if (cloudResult.isFailure) {
+            return Result.failure(cloudResult.exceptionOrNull() ?: Exception("فشل رفض طلب الشحن على الخادم."))
         }
 
-        val now = System.currentTimeMillis()
         try {
             db.topUpRequestDao().updateStatus(requestId, "REJECTED", note, now)
         } catch (e: Exception) {
@@ -238,7 +232,7 @@ class MarketplaceRepository(
     }
 
     suspend fun topUpWallet(userId: String, amount: Int, paymentProvider: String, txReference: String? = null): Result<String> {
-        return Result.failure(Exception("يرجى إرسال وصل التحويل للمراجعة اليدوية عبر شحن المحفظة."))
+        return Result.failure(Exception("عمليات الشحن المباشر غير متاحة لأسباب أمنية؛ يرجى مراجعة واعتماد طلبات الشحن المقدمة من المستخدمين."))
     }
 
     // Users

@@ -94,9 +94,9 @@ import coil.compose.AsyncImage
 import java.io.File
 import java.io.FileOutputStream
 import com.example.data.local.ListingEntity
-import com.example.data.model.AlgeriaWilayas
-import com.example.data.model.CategoriesData
-import com.example.data.model.MarketplaceCategory
+import com.example.data.models.AlgeriaWilayas
+import com.example.data.models.CategoriesData
+import com.example.data.models.MarketplaceCategory
 import com.example.ui.components.AdCard
 import com.example.ui.components.WilayaPickerSheet
 import com.example.ui.components.formatDzd

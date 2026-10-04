@@ -47,7 +47,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.data.model.AlgeriaWilayas
+import com.example.data.models.AlgeriaWilayas
 import com.example.ui.theme.EmeraldPrimary
 import com.example.ui.viewmodel.MarketplaceViewModel
 
@@ -57,12 +57,10 @@ fun RegisterScreen(
     viewModel: MarketplaceViewModel,
     onBack: () -> Unit,
     onRegistered: () -> Unit,
-    onVerificationRequired: (String) -> Unit = {},
     onLogin: () -> Unit
 ) {
     var name by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
-    var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
     var wilaya by remember { mutableStateOf("16 - الجزائر العاصمة") }
@@ -119,7 +117,7 @@ fun RegisterScreen(
                 textAlign = TextAlign.Center
             )
             Text(
-                text = "أنشئ حسابك، ثم أدخل رمز التحقق المرسل إلى بريدك الإلكتروني.",
+                text = "أنشئ حسابك برقم هاتفك لبيع وشراء المنتجات بسهولة وأمان.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
                 fontSize = 14.sp
@@ -148,16 +146,6 @@ fun RegisterScreen(
                 enabled = !isSubmitting
             )
 
-            OutlinedTextField(
-                value = email,
-                onValueChange = { email = it; errorMessage = null },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("البريد الإلكتروني (مطلوب للتحقق والدخول)") },
-                leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                singleLine = true,
-                enabled = !isSubmitting
-            )
             OutlinedTextField(
                 value = password,
                 onValueChange = { password = it; errorMessage = null },
@@ -312,7 +300,7 @@ fun RegisterScreen(
                     viewModel.registerUser(
                         name = name,
                         phone = phone,
-                        email = email,
+                        email = "",
                         wilaya = wilaya,
                         commune = commune,
                         password = password,
@@ -323,10 +311,6 @@ fun RegisterScreen(
                         onError = {
                             isSubmitting = false
                             errorMessage = it
-                        },
-                        onVerificationRequired = { verifiedEmail ->
-                            isSubmitting = false
-                            onVerificationRequired(verifiedEmail)
                         }
                     )
                 },

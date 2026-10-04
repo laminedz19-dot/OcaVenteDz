@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
 package com.example.ui.screens.auth
 
 import androidx.compose.foundation.layout.Arrangement
@@ -87,7 +89,7 @@ fun ForgotPasswordScreen(
                 textAlign = TextAlign.Center
             )
             Text(
-                text = "أدخل البريد الإلكتروني المرتبط بحسابك لبدء الاستعادة.",
+                text = "أدخل رقم الهاتف المرتبط بحسابك لبدء الاستعادة.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
                 fontSize = 14.sp
@@ -98,8 +100,9 @@ fun ForgotPasswordScreen(
                 value = identifier,
                 onValueChange = { identifier = it; feedback = null },
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("البريد الإلكتروني") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                label = { Text("رقم الهاتف") },
+                placeholder = { Text("05 55 12 34 56") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                 singleLine = true,
                 enabled = !isSubmitting
             )
