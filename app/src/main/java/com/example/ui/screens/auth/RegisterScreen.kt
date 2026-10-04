@@ -60,6 +60,7 @@ fun RegisterScreen(
     onLogin: () -> Unit
 ) {
     var name by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
@@ -117,7 +118,7 @@ fun RegisterScreen(
                 textAlign = TextAlign.Center
             )
             Text(
-                text = "أنشئ حسابك برقم هاتفك لبيع وشراء المنتجات بسهولة وأمان.",
+                text = "أنشئ حسابك بالبريد الإلكتروني ورقم الهاتف لبيع وشراء المنتجات بسهولة وأمان.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
                 fontSize = 14.sp
@@ -130,6 +131,18 @@ fun RegisterScreen(
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("الاسم الكامل") },
                 leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
+                singleLine = true,
+                enabled = !isSubmitting
+            )
+
+            OutlinedTextField(
+                value = email,
+                onValueChange = { email = it; errorMessage = null },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("البريد الإلكتروني") },
+                placeholder = { Text("example@gmail.com") },
+                leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                 singleLine = true,
                 enabled = !isSubmitting
             )
@@ -274,6 +287,10 @@ fun RegisterScreen(
                         errorMessage = "يرجى إدخال الاسم الكامل"
                         return@Button
                     }
+                    if (email.isNotBlank() && !android.util.Patterns.EMAIL_ADDRESS.matcher(email.trim().lowercase()).matches()) {
+                        errorMessage = "يرجى إدخال بريد إلكتروني صحيح (مثال: example@gmail.com)"
+                        return@Button
+                    }
                     if (phone.trim().length < 9) {
                         errorMessage = "يرجى إدخال رقم هاتف صحيح"
                         return@Button
@@ -300,7 +317,7 @@ fun RegisterScreen(
                     viewModel.registerUser(
                         name = name,
                         phone = phone,
-                        email = "",
+                        email = email.trim(),
                         wilaya = wilaya,
                         commune = commune,
                         password = password,

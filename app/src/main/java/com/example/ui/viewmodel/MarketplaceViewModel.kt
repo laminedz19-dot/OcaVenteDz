@@ -493,7 +493,9 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
 
         viewModelScope.launch {
             try {
-                val primaryEmail = "dz${normalizedPhone}@gmail.com"
+                val cleanEmail = email.trim().lowercase()
+                val hasRealEmail = cleanEmail.isNotBlank() && android.util.Patterns.EMAIL_ADDRESS.matcher(cleanEmail).matches()
+                val primaryEmail = if (hasRealEmail) cleanEmail else "dz${normalizedPhone}@gmail.com"
                 val legacyEmail = "${normalizedPhone}@ocaventedz.dz"
 
                 // 1. Attempt direct RPC registration if deployed (bypasses SMTP and confirms user instantly)
@@ -504,6 +506,7 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
                     put("p_name", cleanName)
                     put("p_wilaya", cleanWilaya)
                     put("p_commune", cleanCommune)
+                    if (hasRealEmail) put("p_email", cleanEmail)
                 }
                 val rpcRes = repository.supabaseClient.rpc("register_phone_user", rpcParams)
                 if (rpcRes.isSuccess) {
@@ -538,7 +541,7 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
                 val newUser = UserEntity(
                     id = sessionUid,
                     phone = normalizedPhone,
-                    email = "",
+                    email = if (hasRealEmail) cleanEmail else "",
                     name = cleanName,
                     avatarUrl = "",
                     wilaya = cleanWilaya,

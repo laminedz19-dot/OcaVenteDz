@@ -358,13 +358,14 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_auth_user();
 
--- Direct phone registration bypassing SMTP requirements
+-- Direct phone registration bypassing SMTP requirements (supports optional email)
 create or replace function public.register_phone_user(
   p_phone text,
   p_password text,
   p_name text,
   p_wilaya text default 'الجزائر',
-  p_commune text default 'الجزائر الوسطى'
+  p_commune text default 'الجزائر الوسطى',
+  p_email text default ''
 )
 returns jsonb
 language plpgsql
@@ -390,7 +391,11 @@ begin
     raise exception 'يرجى إدخال رقم هاتف جزائري صحيح (مثال: 0555123456 أو 06/07).';
   end if;
 
-  v_primary_email := 'dz' || v_clean_phone || '@gmail.com';
+  if coalesce(trim(p_email), '') <> '' and trim(p_email) ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$' then
+    v_primary_email := lower(trim(p_email));
+  else
+    v_primary_email := 'dz' || v_clean_phone || '@gmail.com';
+  end if;
   v_legacy_email := v_clean_phone || '@ocaventedz.dz';
 
   -- Check if user already exists
@@ -461,9 +466,18 @@ begin
   );
 
   insert into public.profiles (id, phone, email, name, wilaya, commune, role)
-  values (v_user_id, v_clean_phone, '', p_name, p_wilaya, p_commune, 'USER')
+  values (
+    v_user_id,
+    v_clean_phone,
+    case when v_primary_email not like 'dz%@gmail.com' and v_primary_email not like '%@ocaventedz.dz' then v_primary_email else '' end,
+    p_name,
+    p_wilaya,
+    p_commune,
+    'USER'
+  )
   on conflict (id) do update set
     phone = excluded.phone,
+    email = case when excluded.email <> '' then excluded.email else public.profiles.email end,
     name = excluded.name,
     wilaya = excluded.wilaya,
     commune = excluded.commune;
