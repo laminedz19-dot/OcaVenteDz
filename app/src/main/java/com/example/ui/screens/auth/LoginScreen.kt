@@ -102,10 +102,10 @@ fun LoginScreen(
                 value = identifier,
                 onValueChange = { identifier = it; errorMessage = null },
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("رقم الهاتف") },
-                placeholder = { Text("05 55 12 34 56") },
+                label = { Text("رقم الهاتف أو البريد الإلكتروني") },
+                placeholder = { Text("05 55 12 34 56 أو example@email.com") },
                 leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                 singleLine = true,
                 enabled = !isSubmitting
             )
@@ -129,7 +129,7 @@ fun LoginScreen(
             Button(
                 onClick = {
                     if (identifier.isBlank()) {
-                        errorMessage = "يرجى إدخال رقم الهاتف"
+                        errorMessage = "يرجى إدخال رقم الهاتف أو البريد الإلكتروني"
                         return@Button
                     }
                     if (password.isBlank()) {
