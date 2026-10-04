@@ -56,4 +56,3 @@ fun MyApplicationTheme(
 ) {
     OcaVenteTheme(darkTheme = darkTheme, content = content)
 }
-

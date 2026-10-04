@@ -231,10 +231,10 @@ fun OcaVenteApp(viewModel: MarketplaceViewModel) {
                                 )
                                 "chat" -> {
                                     val allListings by viewModel.adminListings.collectAsState()
-                                    val demoListing = allListings.firstOrNull()
+                                    val firstListing = allListings.firstOrNull()
                                     ChatScreen(
-                                        listingId = demoListing?.id ?: "list_1",
-                                        sellerId = demoListing?.userId ?: "user_yacine",
+                                        listingId = firstListing?.id.orEmpty(),
+                                        sellerId = firstListing?.userId.orEmpty(),
                                         viewModel = viewModel,
                                         onBack = { currentScreen = Screen.MainTab("home") }
                                     )

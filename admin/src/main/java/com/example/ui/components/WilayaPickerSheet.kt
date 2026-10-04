@@ -38,8 +38,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.data.models.AlgeriaWilayas
-import com.example.data.models.Wilaya
+import com.example.data.model.AlgeriaWilayas
+import com.example.data.model.Wilaya
 import com.example.ui.theme.EmeraldPrimary
 
 @OptIn(ExperimentalMaterial3Api::class)

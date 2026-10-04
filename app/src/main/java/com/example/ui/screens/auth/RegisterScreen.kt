@@ -14,7 +14,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.HowToReg
 import androidx.compose.material.icons.filled.LocationCity
 import androidx.compose.material.icons.filled.Lock
@@ -47,7 +47,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.data.models.AlgeriaWilayas
+import com.example.data.model.AlgeriaWilayas
 import com.example.ui.theme.EmeraldPrimary
 import com.example.ui.viewmodel.MarketplaceViewModel
 
@@ -60,18 +60,22 @@ fun RegisterScreen(
     onLogin: () -> Unit
 ) {
     var name by remember { mutableStateOf("") }
-    var email by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
     var wilaya by remember { mutableStateOf("16 - الجزائر العاصمة") }
     var commune by remember { mutableStateOf("الجزائر الوسطى") }
+
+    var otpToken by remember { mutableStateOf("") }
+    var showOtpVerification by remember { mutableStateOf(false) }
 
     var isWilayaExpanded by remember { mutableStateOf(false) }
     var isCommuneExpanded by remember { mutableStateOf(false) }
 
     var isSubmitting by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var successNotice by remember { mutableStateOf<String?>(null) }
 
     val selectedWilayaObj = remember(wilaya) {
         AlgeriaWilayas.list.find {
@@ -118,7 +122,7 @@ fun RegisterScreen(
                 textAlign = TextAlign.Center
             )
             Text(
-                text = "أنشئ حسابك بالبريد الإلكتروني ورقم الهاتف لبيع وشراء المنتجات بسهولة وأمان.",
+                text = "أنشئ حسابك برقم هاتفك لبيع وشراء المنتجات بسهولة وأمان.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
                 fontSize = 14.sp
@@ -136,18 +140,6 @@ fun RegisterScreen(
             )
 
             OutlinedTextField(
-                value = email,
-                onValueChange = { email = it; errorMessage = null },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("البريد الإلكتروني") },
-                placeholder = { Text("example@gmail.com") },
-                leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                singleLine = true,
-                enabled = !isSubmitting
-            )
-
-            OutlinedTextField(
                 value = phone,
                 onValueChange = { phone = it; errorMessage = null },
                 modifier = Modifier.fillMaxWidth(),
@@ -155,6 +147,18 @@ fun RegisterScreen(
                 placeholder = { Text("05 55 12 34 56") },
                 leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                singleLine = true,
+                enabled = !isSubmitting
+            )
+
+            OutlinedTextField(
+                value = email,
+                onValueChange = { email = it; errorMessage = null },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("البريد الإلكتروني") },
+                placeholder = { Text("example@domain.dz") },
+                leadingIcon = { Icon(Icons.Default.AccountCircle, contentDescription = null) },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                 singleLine = true,
                 enabled = !isSubmitting
             )
@@ -277,34 +281,121 @@ fun RegisterScreen(
                 )
             }
 
+            if (showOtpVerification) {
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { if (!isSubmitting) showOtpVerification = false },
+                    title = { Text("رمز تأكيد البريد الإلكتروني", fontWeight = FontWeight.Bold) },
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("تم إرسال رمز المصادقة (6 أرقام) إلى:")
+                            Text(email, fontWeight = FontWeight.Bold, color = EmeraldPrimary)
+                            Text(
+                                "يرجى فحص صندوق الوارد أو الرسائل غير المرغوب فيها (Spam) وإدخال الرمز لتفعيل حسابك:",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            OutlinedTextField(
+                                value = otpToken,
+                                onValueChange = {
+                                    if (it.length <= 8) otpToken = it.filter { ch -> ch.isDigit() }
+                                    errorMessage = null
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                label = { Text("رمز التحقق (6 أرقام)") },
+                                placeholder = { Text("123456") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                singleLine = true,
+                                enabled = !isSubmitting
+                            )
+                            errorMessage?.let {
+                                Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                if (otpToken.length < 4) {
+                                    errorMessage = "يرجى إدخال رمز التحقق المستلم."
+                                    return@Button
+                                }
+                                isSubmitting = true
+                                errorMessage = null
+                                viewModel.verifyEmailOtpAndRegister(
+                                    name = name,
+                                    phone = phone,
+                                    email = email,
+                                    wilaya = wilaya,
+                                    commune = commune,
+                                    token = otpToken,
+                                    onSuccess = {
+                                        isSubmitting = false
+                                        showOtpVerification = false
+                                        onRegistered()
+                                    },
+                                    onError = {
+                                        isSubmitting = false
+                                        errorMessage = it
+                                    }
+                                )
+                            },
+                            enabled = !isSubmitting,
+                            colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary)
+                        ) {
+                            if (isSubmitting) {
+                                CircularProgressIndicator(color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.height(18.dp))
+                            } else {
+                                Text("تأكيد وإنشاء الحساب")
+                            }
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(
+                            onClick = {
+                                isSubmitting = true
+                                errorMessage = null
+                                viewModel.sendEmailOtp(
+                                    email = email,
+                                    shouldCreateUser = true,
+                                    onSuccess = {
+                                        isSubmitting = false
+                                        successNotice = "تمت إعادة إرسال الرمز بنجاح."
+                                    },
+                                    onError = {
+                                        isSubmitting = false
+                                        errorMessage = it
+                                    }
+                                )
+                            },
+                            enabled = !isSubmitting
+                        ) {
+                            Text("إعادة إرسال")
+                        }
+                    }
+                )
+            }
+
+            successNotice?.let {
+                Text(it, color = EmeraldPrimary, fontSize = 13.sp, textAlign = TextAlign.Center)
+            }
+
             errorMessage?.let {
                 Text(it, color = MaterialTheme.colorScheme.error, fontSize = 13.sp, textAlign = TextAlign.Center)
             }
 
+            // OTP Registration Option
             Button(
                 onClick = {
                     if (name.trim().length < 2) {
                         errorMessage = "يرجى إدخال الاسم الكامل"
                         return@Button
                     }
-                    if (email.isNotBlank() && !android.util.Patterns.EMAIL_ADDRESS.matcher(email.trim().lowercase()).matches()) {
-                        errorMessage = "يرجى إدخال بريد إلكتروني صحيح (مثال: example@gmail.com)"
-                        return@Button
-                    }
                     if (phone.trim().length < 9) {
                         errorMessage = "يرجى إدخال رقم هاتف صحيح"
                         return@Button
                     }
-                    if (password.isBlank()) {
-                        errorMessage = "يرجى إدخال كلمة المرور"
-                        return@Button
-                    }
-                    if (password.length < 6) {
-                        errorMessage = "يجب أن تتكون كلمة المرور من 6 أحرف على الأقل"
-                        return@Button
-                    }
-                    if (password != confirmPassword) {
-                        errorMessage = "كلمة المرور وتأكيد كلمة المرور غير متطابقين"
+                    if (email.isBlank() || !android.util.Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches()) {
+                        errorMessage = "يرجى إدخال بريد إلكتروني صحيح لاستلام رمز التحقق"
                         return@Button
                     }
                     if (wilaya.trim().isEmpty() || commune.trim().isEmpty()) {
@@ -314,16 +405,12 @@ fun RegisterScreen(
 
                     isSubmitting = true
                     errorMessage = null
-                    viewModel.registerUser(
-                        name = name,
-                        phone = phone,
-                        email = email.trim(),
-                        wilaya = wilaya,
-                        commune = commune,
-                        password = password,
+                    viewModel.sendEmailOtp(
+                        email = email,
+                        shouldCreateUser = true,
                         onSuccess = {
                             isSubmitting = false
-                            onRegistered()
+                            showOtpVerification = true
                         },
                         onError = {
                             isSubmitting = false
@@ -340,8 +427,63 @@ fun RegisterScreen(
                 if (isSubmitting) {
                     CircularProgressIndicator(color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.height(22.dp))
                 } else {
-                    Text("إنشاء الحساب", fontWeight = FontWeight.Bold)
+                    Text("إرسال رمز المصادقة إلى البريد وإنشاء الحساب", fontWeight = FontWeight.Bold)
                 }
+            }
+
+            // Standard Password Registration Option
+            androidx.compose.material3.OutlinedButton(
+                onClick = {
+                    if (name.trim().length < 2) {
+                        errorMessage = "يرجى إدخال الاسم الكامل"
+                        return@OutlinedButton
+                    }
+                    if (phone.trim().length < 9) {
+                        errorMessage = "يرجى إدخال رقم هاتف صحيح"
+                        return@OutlinedButton
+                    }
+                    if (password.isBlank()) {
+                        errorMessage = "يرجى إدخال كلمة المرور"
+                        return@OutlinedButton
+                    }
+                    if (password.length < 6) {
+                        errorMessage = "يجب أن تتكون كلمة المرور من 6 أحرف على الأقل"
+                        return@OutlinedButton
+                    }
+                    if (password != confirmPassword) {
+                        errorMessage = "كلمة المرور وتأكيد كلمة المرور غير متطابقين"
+                        return@OutlinedButton
+                    }
+                    if (wilaya.trim().isEmpty() || commune.trim().isEmpty()) {
+                        errorMessage = "يرجى تحديد الولاية والبلدية"
+                        return@OutlinedButton
+                    }
+
+                    isSubmitting = true
+                    errorMessage = null
+                    viewModel.registerUser(
+                        name = name,
+                        phone = phone,
+                        email = email,
+                        wilaya = wilaya,
+                        commune = commune,
+                        password = password,
+                        onSuccess = {
+                            isSubmitting = false
+                            onRegistered()
+                        },
+                        onError = {
+                            isSubmitting = false
+                            errorMessage = it
+                        }
+                    )
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp),
+                enabled = !isSubmitting
+            ) {
+                Text("أو التسجيل بكلمة المرور مباشرة", fontWeight = FontWeight.SemiBold)
             }
 
             TextButton(onClick = onLogin, enabled = !isSubmitting) {

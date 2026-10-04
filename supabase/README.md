@@ -1,73 +1,26 @@
-# دليل إعداد Supabase الكامل لتطبيقي OcaVenteDz (:app و :admin)
+# Supabase setup for OcaVenteDz
 
-تم إعداد وضبط قاعدة بيانات **Supabase** لتتوافق بشكل كامل 100% مع كافة متطلبات ونماذج البيانات والعمليات في تطبيقي الهاتف للمستخدمين والإدارة.
+The migrations in this directory define the complete cloud data layer for OcaVenteDz.
 
----
+## Apply the database
 
-## 🚀 طريقة التثبيت في نقرة واحدة (موصى بها)
+1. In **Authentication → Users**, create or confirm the user `laminedz.19@gmail.com` and set its initial password there. The password is intentionally not committed to Git.
+2. Open the Supabase SQL Editor for the project configured in `SUPABASE_URL`.
+3. Run `20261002190000_initial_supabase_schema.sql`.
+4. Run `20261002194500_add_payment_orders_and_reviews.sql`.
+5. Run `20261002220000_seed_admin_role.sql`. It grants the `admin` role to the authenticated user matching `laminedz.19@gmail.com` and updates the profile role to `ADMIN`.
 
-1. افتح مشروعك في **[Supabase Dashboard](https://supabase.com/dashboard)**.
-2. اذهب إلى قسم **SQL Editor** من القائمة الجانبية.
-3. افتح استعلاماً جديداً (`New query`).
-4. انسخ كامل محتوى الملف الموحد:
-   👉 **`supabase/FULL_DATABASE_SETUP.sql`**
-5. الصقه في محرر SQL واضغط **Run**.
+The admin application verifies the server-side `user_roles` record on every admin login. The **Security** section in the admin app lets the authenticated administrator change the Supabase password after re-entering the current password.
 
-سيتم إنشاء وتحديث كافة الجداول، الفهارس، الصلاحيات (RLS)، دوال الأمان (RPC Functions)، المحافظ الإلكترونية، ودلاء التخزين تلقائياً!
+The scripts are rerunnable: tables, indexes and policies use `if not exists`/`drop policy if exists` guards. Existing production data should be backed up before applying schema changes.
 
----
+## Android configuration
 
-## 🗄️ الجداول المدارة والمتوافقة مع التطبيقين
+Set these values in `local.properties` for local builds or GitHub Actions secrets for CI:
 
-| اسم الجدول | الوصف | التوافق مع التطبيقين |
-|---|---|---|
-| `profiles` | الحسابات والملفات الشخصية | يدعم الولاية، البلدية، الهاتف الموحد، التحقق، الحظر، ورتبة المستخدم |
-| `user_roles` | أدوار وصلاحيات المشرفين | التحقق الصارم من دور `admin` للمشرف `laminedz.19@gmail.com` |
-| `listings` | إعلانات البيع والشراء | متوافق ثنائي الاتجاه (`wilaya`/`wilaya_name` و `images`/`images_json`) |
-| `wallets` | المحافظ المالية للمستخدمين | رصيد بالدينار الجزائري، محمية من التلاعب المباشر |
-| `wallet_transactions` | سجل الحركات المالية | تدعم عمليات الشحن، خصم رسوم الإعلانات، والتحويلات |
-| `top_up_requests` | طلبات شحن الرصيد بالوصل | تعبئة تلقائية لاسم ورقم هاتف المستخدم لمنصة الإدارة |
-| `platform_settings` | إعدادات المنصة والأسعار | تزامن تلقائي لحظي بين المعرّفين `'global'` و `'1'` |
-| `orders` | طلبات الشراء والتوصيل | تتبع الطلبات، الحالات، وأرقام التتبع |
-| `payment_orders` | سجل عمليات الدفع | تتبع الدفعات وتأكيد المراجع |
-| `reviews` | تقييمات البائعين | تقييمات بالنجوم (1-5) والتعليقات |
-| `chat_messages` | المحادثات الفورية والعروض | مراسلات حية وعروض أسعار بين البائع والمشتري |
-| `reports` | البلاغات والشكاوى | إرسال البلاغات للمشرف ومتابعة معالجتها |
-| `favorites` | الإعلانات المفضلة والتنبيهات | حفظ وتنبيهات انخفاض الأسعار |
+```properties
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your-public-anon-key
+```
 
----
-
-## ⚙️ الدوال السحابية الآمنة (RPC Security Definer Functions)
-
-- **`approve_top_up(request_id, p_admin_note)`**:
-  - موافقة المشرف على وصل الشحن، شحن رصيد المحفظة ذرياً، تسجيل حركة المعاملة، ومنع الموافقة المزدوجة نهائياً.
-- **`reject_top_up(request_id, p_reason)`**:
-  - رفض طلب الشحن وتحديد سبب الرفض وإشعار المستخدم.
-- **`debit_wallet(p_user_id, p_amount, p_description, p_reference_id)`**:
-  - خصم آمن من المحفظة مع التحقق الصارم من كفاية الرصيد وتسجيل العملية.
-- **`pay_and_submit_listing(p_listing_id, p_package_type, p_fee_dzd)`**:
-  - خصم رسوم الإعلان من المحفظة، ونشر الإعلان فوراً أو تحويله للمراجعة حسب إعدادات المنصة.
-- **`increment_listing_views(p_listing_id)`**:
-  - زيادة عدد مشاهدات الإعلان بشكل آمن.
-- **`delete_current_user_account()`**:
-  - حذف كامل بيانات المستخدم تماشياً مع متطلبات خصوصية Google Play.
-
----
-
-## 📦 التخزين السحابي (Supabase Storage Buckets)
-
-1. **`oca-vente-media` (عام / Public)**:
-   - مخصص لصور الإعلانات وصور الحسابات الشخصية.
-   - يسمح بعرض وقراءة الصور للجميع، ورفع وتعديل الصور للمستخدم صاحب المجلد والمشرف.
-2. **`oca-vente-private` (خاص / Private)**:
-   - مخصص لوصولات الشحن البنكي والبريدي (BaridiMob / CCP) ومستندات التحقق.
-   - محمي تماماً؛ لا يمكن قراءته إلا من قبل صاحب الوصل أو المشرف عبر الروابط الموقعة (`Signed URLs`).
-
----
-
-## 🔐 إعدادات حساب المشرف (Admin)
-
-تم تعيين البريد التالي ليكون مشرف النظام تلقائياً:
-- **`laminedz.19@gmail.com`**
-
-عند تسجيل هذا الحساب عبر Supabase Auth، سيتم منحه صلاحية `admin` في جدول `user_roles` وتعيين رتبته كـ `ADMIN` في `profiles` تلقائياً عبر المشغل (`trigger`).
+Only the public anon key belongs in the APK. The service-role key must remain server-side and is not used by the Android clients. Never put an Auth password in SQL, source code, GitHub Actions, or the APK.
