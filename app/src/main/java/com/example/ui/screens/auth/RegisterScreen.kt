@@ -35,6 +35,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -50,6 +51,7 @@ import androidx.compose.ui.unit.sp
 import com.example.data.model.AlgeriaWilayas
 import com.example.ui.theme.EmeraldPrimary
 import com.example.ui.viewmodel.MarketplaceViewModel
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -74,8 +76,16 @@ fun RegisterScreen(
     var isCommuneExpanded by remember { mutableStateOf(false) }
 
     var isSubmitting by remember { mutableStateOf(false) }
+    var resendCooldown by remember { mutableStateOf(0) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var successNotice by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(resendCooldown) {
+        if (resendCooldown > 0) {
+            delay(1_000)
+            resendCooldown -= 1
+        }
+    }
 
     val selectedWilayaObj = remember(wilaya) {
         AlgeriaWilayas.list.find {
@@ -359,6 +369,7 @@ fun RegisterScreen(
                                     shouldCreateUser = true,
                                     onSuccess = {
                                         isSubmitting = false
+                                        resendCooldown = 60
                                         successNotice = "تمت إعادة إرسال الرمز بنجاح."
                                     },
                                     onError = {
@@ -367,9 +378,9 @@ fun RegisterScreen(
                                     }
                                 )
                             },
-                            enabled = !isSubmitting
+                            enabled = !isSubmitting && resendCooldown == 0
                         ) {
-                            Text("إعادة إرسال")
+                            Text(if (resendCooldown > 0) "إعادة الإرسال بعد ${resendCooldown}ث" else "إعادة إرسال")
                         }
                     }
                 )
