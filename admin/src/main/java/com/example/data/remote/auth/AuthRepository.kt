@@ -356,6 +356,8 @@ class AuthRepository {
                 "يرجى تأكيد الحساب عبر البريد الإلكتروني للمتابعة."
             code == "weak_password" || desc.contains("Password should be", ignoreCase = true) ->
                 "كلمة المرور يجب أن تتكون من 6 أحرف أو أرقام على الأقل."
+            desc.contains("Error sending confirmation email", ignoreCase = true) ->
+                "تعذر إرسال رسالة التأكيد عبر خادم البريد (يرجى تعطيل Confirm Email في لوحة Supabase أو إدخال بريدك المسجل في Resend)."
             code == "over_request_rate_limit" || code == "over_email_send_rate_limit" || desc.contains("rate limit", ignoreCase = true) || desc.contains("security purposes", ignoreCase = true) ->
                 "تم تجاوز عدد المحاولات المسموح بها مؤقتاً، يرجى الانتظار دقيقة والمحاولة مجدداً."
             desc.isNotBlank() -> desc
