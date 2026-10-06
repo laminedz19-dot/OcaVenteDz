@@ -196,7 +196,7 @@ fun ProfileScreen(
                                         modifier = Modifier.size(18.dp)
                                     )
                                 }
-                                if (currentUser?.role == "ADMIN" || currentUser?.email == "laminedz.19@gmail.com" || currentUser?.email == "laminedz19@gmail.com") {
+                                if (currentUser?.role == "ADMIN") {
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Surface(
                                         color = EmeraldPrimary,

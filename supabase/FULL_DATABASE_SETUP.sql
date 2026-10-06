@@ -1172,3 +1172,16 @@ create policy reviews_update_buyer_or_admin on public.reviews for update to auth
 
 drop policy if exists reviews_delete_buyer_or_admin on public.reviews;
 create policy reviews_delete_buyer_or_admin on public.reviews for delete to authenticated using (buyer_id = auth.uid() or public.is_admin());
+
+-- ====================================================================
+-- Role Permissions & Grants (CRITICAL for PostgREST & Supabase Auth)
+-- ====================================================================
+grant usage on schema public to anon, authenticated, service_role;
+grant all on all tables in schema public to anon, authenticated, service_role;
+grant all on all sequences in schema public to anon, authenticated, service_role;
+grant all on all routines in schema public to anon, authenticated, service_role;
+
+grant execute on function public.register_phone_user to anon, authenticated, service_role;
+grant execute on function public.auto_confirm_user to anon, authenticated, service_role;
+grant execute on function public.is_admin to anon, authenticated, service_role;
+

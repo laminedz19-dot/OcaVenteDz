@@ -79,8 +79,6 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        intent?.data?.let { handleAuthUri(it) }
-
         setContent {
             OcaVenteTheme {
                 val currentLang by viewModel.language.collectAsState()
@@ -90,32 +88,6 @@ class MainActivity : ComponentActivity() {
                 CompositionLocalProvider(LocalLayoutDirection provides layoutDirection) {
                     OcaVenteApp(viewModel = viewModel)
                 }
-            }
-        }
-    }
-
-    override fun onNewIntent(intent: android.content.Intent) {
-        super.onNewIntent(intent)
-        intent.data?.let { handleAuthUri(it) }
-    }
-
-    private fun handleAuthUri(uri: android.net.Uri) {
-        val target = uri.fragment ?: uri.query.orEmpty()
-        if (target.contains("access_token")) {
-            val params = target.split("&").associate { param ->
-                val parts = param.split("=")
-                if (parts.size >= 2) parts[0] to parts[1] else "" to ""
-            }
-            val access = params["access_token"]
-            val refresh = params["refresh_token"]
-            if (!access.isNullOrBlank()) {
-                com.example.data.remote.supabase.SupabaseSessionStore.save(
-                    access = access,
-                    refresh = refresh.orEmpty(),
-                    userId = params["user_id"].orEmpty(),
-                    expiresInSeconds = 3600L
-                )
-                viewModel.refreshSession()
             }
         }
     }
@@ -204,7 +176,7 @@ fun OcaVenteApp(viewModel: MarketplaceViewModel) {
                         currentTab = (currentScreen as Screen.MainTab).tab,
                         onTabSelected = { newTab ->
                             if ((newTab == "create" || newTab == "chat") && currentUserId.isBlank()) {
-                                viewModel.emitMessage("يرجى تسجيل الدخول برقم هاتفك للمتابعة")
+                                viewModel.emitMessage("يرجى تسجيل الدخول ببريدك الإلكتروني للمتابعة")
                                 currentScreen = Screen.Login
                             } else {
                                 currentScreen = Screen.MainTab(newTab)
@@ -239,7 +211,7 @@ fun OcaVenteApp(viewModel: MarketplaceViewModel) {
                                     onSearchClick = { currentScreen = Screen.MainTab("search") },
                                     onSellClick = {
                                         if (currentUserId.isBlank()) {
-                                            viewModel.emitMessage("يرجى تسجيل الدخول برقم هاتفك لنشر إعلانك")
+                                            viewModel.emitMessage("يرجى تسجيل الدخول ببريدك الإلكتروني لنشر إعلانك")
                                             currentScreen = Screen.Login
                                         } else {
                                             currentScreen = Screen.MainTab("create")
@@ -259,10 +231,10 @@ fun OcaVenteApp(viewModel: MarketplaceViewModel) {
                                 )
                                 "chat" -> {
                                     val allListings by viewModel.adminListings.collectAsState()
-                                    val firstListing = allListings.firstOrNull()
+                                    val demoListing = allListings.firstOrNull()
                                     ChatScreen(
-                                        listingId = firstListing?.id.orEmpty(),
-                                        sellerId = firstListing?.userId.orEmpty(),
+                                        listingId = demoListing?.id ?: "list_1",
+                                        sellerId = demoListing?.userId ?: "user_yacine",
                                         viewModel = viewModel,
                                         onBack = { currentScreen = Screen.MainTab("home") }
                                     )
@@ -287,7 +259,7 @@ fun OcaVenteApp(viewModel: MarketplaceViewModel) {
                                 onBack = { currentScreen = Screen.MainTab("home") },
                                 onOpenChat = { lId, sId ->
                                     if (currentUserId.isBlank()) {
-                                        viewModel.emitMessage("يرجى تسجيل الدخول برقم هاتفك للتواصل مع البائع")
+                                        viewModel.emitMessage("يرجى تسجيل الدخول ببريدك الإلكتروني للتواصل مع البائع")
                                         currentScreen = Screen.Login
                                     } else {
                                         currentScreen = Screen.ChatConversation(lId, sId)

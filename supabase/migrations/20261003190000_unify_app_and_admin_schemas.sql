@@ -301,6 +301,130 @@ begin
 end;
 $$;
 
+-- RPC: Direct email registration bypassing SMTP requirements
+create or replace function public.register_email_user(
+  p_email text,
+  p_password text,
+  p_name text,
+  p_phone text default '',
+  p_wilaya text default 'الجزائر',
+  p_commune text default 'الجزائر الوسطى'
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, auth, extensions
+as $$
+declare
+  v_user_id uuid;
+  v_encrypted_pw text;
+  v_clean_email text;
+  v_clean_phone text;
+begin
+  v_clean_email := lower(trim(p_email));
+  if v_clean_email = '' or v_clean_email !~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$' then
+    raise exception 'يرجى إدخال بريد إلكتروني صحيح.';
+  end if;
+
+  if exists (select 1 from auth.users where lower(email) = v_clean_email) then
+    raise exception 'هذا البريد الإلكتروني مسجل مسبقاً. يرجى تسجيل الدخول مباشرة.';
+  end if;
+
+  v_clean_phone := regexp_replace(coalesce(p_phone, ''), '[^0-9]', '', 'g');
+  if length(v_clean_phone) = 9 and v_clean_phone ~ '^[567]' then
+    v_clean_phone := '0' || v_clean_phone;
+  elsif length(v_clean_phone) = 12 and v_clean_phone ~ '^213[567]' then
+    v_clean_phone := '0' || substring(v_clean_phone from 4);
+  end if;
+
+  v_user_id := gen_random_uuid();
+  v_encrypted_pw := crypt(p_password, gen_salt('bf'));
+
+  insert into auth.users (
+    instance_id,
+    id,
+    aud,
+    role,
+    email,
+    encrypted_password,
+    email_confirmed_at,
+    phone,
+    phone_confirmed_at,
+    raw_app_meta_data,
+    raw_user_meta_data,
+    created_at,
+    updated_at,
+    confirmation_token,
+    recovery_token
+  ) values (
+    '00000000-0000-0000-0000-000000000000',
+    v_user_id,
+    'authenticated',
+    'authenticated',
+    v_clean_email,
+    v_encrypted_pw,
+    now(),
+    v_clean_phone,
+    case when v_clean_phone <> '' then now() else null end,
+    '{"provider":"email","providers":["email"]}'::jsonb,
+    jsonb_build_object('name', p_name, 'phone', v_clean_phone),
+    now(),
+    now(),
+    '',
+    ''
+  );
+
+  insert into auth.identities (
+    id,
+    user_id,
+    identity_data,
+    provider,
+    provider_id,
+    last_sign_in_at,
+    created_at,
+    updated_at
+  ) values (
+    v_user_id::text,
+    v_user_id,
+    jsonb_build_object('sub', v_user_id::text, 'email', v_clean_email),
+    'email',
+    v_clean_email,
+    now(),
+    now(),
+    now()
+  );
+
+  insert into public.profiles (id, phone, email, name, wilaya, commune, role)
+  values (
+    v_user_id,
+    v_clean_phone,
+    v_clean_email,
+    p_name,
+    p_wilaya,
+    p_commune,
+    'USER'
+  )
+  on conflict (id) do update set
+    email = excluded.email,
+    phone = case when excluded.phone <> '' then excluded.phone else public.profiles.phone end,
+    name = excluded.name,
+    wilaya = excluded.wilaya,
+    commune = excluded.commune;
+
+  insert into public.wallets (user_id, balance_dzd)
+  values (v_user_id, 0)
+  on conflict (user_id) do nothing;
+
+  return jsonb_build_object(
+    'success', true,
+    'user_id', v_user_id,
+    'email', v_clean_email,
+    'phone', v_clean_phone,
+    'message', 'تم تسجيل الحساب بالبريد الإلكتروني بنجاح وتفعيله.'
+  );
+end;
+$$;
+
 -- 5. Platform settings synchronization between 'global' and '1'
 insert into public.platform_settings (id, standard_ad_fee_dzd, featured_ad_fee_dzd, urgent_ad_fee_dzd, ad_duration_days, auto_publish_after_payment, is_free_promo_active)
 values ('global', 400, 600, 1000, 30, true, false)
@@ -425,3 +549,14 @@ create policy profiles_admin_all on public.profiles
   for all to authenticated
   using (public.is_admin())
   with check (public.is_admin());
+
+-- 8. Grant schema, table, and function permissions
+grant usage on schema public to anon, authenticated, service_role;
+grant all on all tables in schema public to anon, authenticated, service_role;
+grant all on all sequences in schema public to anon, authenticated, service_role;
+grant all on all routines in schema public to anon, authenticated, service_role;
+
+grant execute on function public.register_phone_user to anon, authenticated, service_role;
+grant execute on function public.auto_confirm_user to anon, authenticated, service_role;
+grant execute on function public.is_admin to anon, authenticated, service_role;
+

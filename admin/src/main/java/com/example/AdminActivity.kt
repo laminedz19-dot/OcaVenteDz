@@ -25,8 +25,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.AdminPanelSettings
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Shield
@@ -43,7 +43,6 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -152,13 +151,9 @@ fun AdminLoginGate(
     viewModel: MarketplaceViewModel,
     onSuccess: () -> Unit
 ) {
-    var mode by remember { mutableStateOf(0) } // 0: OTP Email, 1: Password
-    var email by remember { mutableStateOf("laminedz.19@gmail.com") }
-    var otpToken by remember { mutableStateOf("") }
-    var otpSent by remember { mutableStateOf(false) }
+    var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
-    var successNotice by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(false) }
 
     Column(
@@ -197,31 +192,14 @@ fun AdminLoginGate(
         Spacer(modifier = Modifier.height(6.dp))
 
         Text(
-            text = "بوابة الإدارة المركزية وحماية شحن الرصيد\nالمصادقة السحابية الصارمة عبر Supabase Auth",
+            text = "بوابة الإدارة المركزية وحماية شحن الرصيد\nالمصادقة السحابية الصارمة عبر مصادقة التطبيق",
             fontSize = 13.sp,
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             lineHeight = 18.sp
         )
 
-        Spacer(modifier = Modifier.height(20.dp))
-
-        // Toggle Tabs
-        androidx.compose.material3.TabRow(
-            selectedTabIndex = mode,
-            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
-        ) {
-            androidx.compose.material3.Tab(
-                selected = mode == 0,
-                onClick = { mode = 0; errorMessage = null; successNotice = null },
-                text = { Text("رمز البريد (OTP)", fontWeight = FontWeight.SemiBold, fontSize = 13.sp) }
-            )
-            androidx.compose.material3.Tab(
-                selected = mode == 1,
-                onClick = { mode = 1; errorMessage = null; successNotice = null },
-                text = { Text("كلمة المرور", fontWeight = FontWeight.SemiBold, fontSize = 13.sp) }
-            )
-        }
+        Spacer(modifier = Modifier.height(28.dp))
 
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -239,7 +217,7 @@ fun AdminLoginGate(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = if (mode == 0) "دخول المشرف برمز التحقق (OTP)" else "تسجيل دخول المشرف بكلمة المرور",
+                        text = "تسجيل دخول المسؤول",
                         fontWeight = FontWeight.Bold,
                         fontSize = 15.sp
                     )
@@ -254,225 +232,36 @@ fun AdminLoginGate(
                         errorMessage = null
                     },
                     label = { Text("البريد الإلكتروني للمسؤول") },
-                    placeholder = { Text("laminedz.19@gmail.com") },
+                    placeholder = { Text("admin@example.com") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                     leadingIcon = {
-                        Icon(Icons.Default.AccountCircle, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.Email, contentDescription = null, modifier = Modifier.size(18.dp))
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = !isLoading && !otpSent
+                    enabled = !isLoading
                 )
 
-                if (mode == 0) {
-                    // OTP Mode
-                    if (otpSent) {
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            text = "تم إرسال رمز التحقق إلى بريدك. أدخل الرمز (6 أرقام):",
-                            fontSize = 12.sp,
-                            color = EmeraldPrimary,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
-                        OutlinedTextField(
-                            value = otpToken,
-                            onValueChange = {
-                                if (it.length <= 8) otpToken = it.filter { ch -> ch.isDigit() }
-                                errorMessage = null
-                            },
-                            label = { Text("رمز التحقق (6 أرقام)") },
-                            placeholder = { Text("123456") },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            leadingIcon = {
-                                Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(18.dp))
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            enabled = !isLoading
-                        )
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        Button(
-                            onClick = {
-                                if (otpToken.length < 4) {
-                                    errorMessage = "يرجى إدخال رمز التحقق المستلم"
-                                    return@Button
-                                }
-                                isLoading = true
-                                errorMessage = null
-                                viewModel.loginAdminWithOtp(
-                                    email = email.trim(),
-                                    token = otpToken.trim(),
-                                    onSuccess = {
-                                        isLoading = false
-                                        onSuccess()
-                                    },
-                                    onError = { err ->
-                                        isLoading = false
-                                        errorMessage = err
-                                    }
-                                )
-                            },
-                            modifier = Modifier.fillMaxWidth().height(48.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary),
-                            shape = RoundedCornerShape(10.dp),
-                            enabled = !isLoading
-                        ) {
-                            if (isLoading) {
-                                CircularProgressIndicator(color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("جاري التحقق والدخول...", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                            } else {
-                                Icon(Icons.Default.LockOpen, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("تأكيد الرمز والدخول", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                            }
-                        }
-
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            TextButton(
-                                onClick = {
-                                    isLoading = true
-                                    errorMessage = null
-                                    viewModel.sendEmailOtp(
-                                        email = email.trim(),
-                                        shouldCreateUser = false,
-                                        onSuccess = {
-                                            isLoading = false
-                                            successNotice = "تمت إعادة إرسال الرمز بنجاح."
-                                        },
-                                        onError = {
-                                            isLoading = false
-                                            errorMessage = it
-                                        }
-                                    )
-                                },
-                                enabled = !isLoading
-                            ) {
-                                Text("إعادة إرسال الرمز")
-                            }
-
-                            TextButton(
-                                onClick = {
-                                    otpSent = false
-                                    otpToken = ""
-                                },
-                                enabled = !isLoading
-                            ) {
-                                Text("تغيير البريد")
-                            }
-                        }
-                    } else {
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Button(
-                            onClick = {
-                                if (email.isBlank() || !android.util.Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches()) {
-                                    errorMessage = "يرجى إدخال بريد إلكتروني صحيح"
-                                    return@Button
-                                }
-                                isLoading = true
-                                errorMessage = null
-                                viewModel.sendEmailOtp(
-                                    email = email.trim(),
-                                    shouldCreateUser = false,
-                                    onSuccess = {
-                                        isLoading = false
-                                        otpSent = true
-                                        successNotice = "تم إرسال رمز المصادقة بنجاح إلى بريدك."
-                                    },
-                                    onError = {
-                                        isLoading = false
-                                        errorMessage = it
-                                    }
-                                )
-                            },
-                            modifier = Modifier.fillMaxWidth().height(48.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary),
-                            shape = RoundedCornerShape(10.dp),
-                            enabled = !isLoading
-                        ) {
-                            if (isLoading) {
-                                CircularProgressIndicator(color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("جاري الإرسال...", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                            } else {
-                                Icon(Icons.Default.AccountCircle, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("إرسال رمز المصادقة إلى البريد", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                            }
-                        }
-                    }
-                } else {
-                    // Password Mode
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    OutlinedTextField(
-                        value = password,
-                        onValueChange = {
-                            password = it
-                            errorMessage = null
-                        },
-                        label = { Text("كلمة المرور") },
-                        placeholder = { Text("••••••••") },
-                        singleLine = true,
-                        visualTransformation = PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                        leadingIcon = {
-                            Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(18.dp))
-                        },
-                        isError = errorMessage != null,
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = !isLoading
-                    )
-
-                    Spacer(modifier = Modifier.height(20.dp))
-
-                    Button(
-                        onClick = {
-                            if (email.isBlank() || password.isBlank()) {
-                                errorMessage = "يرجى ملء البريد الإلكتروني وكلمة المرور"
-                                return@Button
-                            }
-                            isLoading = true
-                            errorMessage = null
-                            viewModel.loginAdmin(
-                                email = email.trim(),
-                                pass = password,
-                                onSuccess = {
-                                    isLoading = false
-                                    onSuccess()
-                                },
-                                onError = { err ->
-                                    isLoading = false
-                                    errorMessage = err
-                                }
-                            )
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary),
-                        shape = RoundedCornerShape(10.dp),
-                        enabled = !isLoading
-                    ) {
-                        if (isLoading) {
-                            CircularProgressIndicator(
-                                color = MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier.size(20.dp),
-                                strokeWidth = 2.dp
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("جاري التحقق من الصلاحيات...", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                        } else {
-                            Icon(Icons.Default.LockOpen, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("دخول لوحة الإدارة", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                        }
-                    }
-                }
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = {
+                        password = it
+                        errorMessage = null
+                    },
+                    label = { Text("كلمة المرور") },
+                    placeholder = { Text("••••••••") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    leadingIcon = {
+                        Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(18.dp))
+                    },
+                    isError = errorMessage != null,
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isLoading
+                )
 
                 if (errorMessage != null) {
                     Spacer(modifier = Modifier.height(8.dp))
@@ -484,14 +273,49 @@ fun AdminLoginGate(
                     )
                 }
 
-                if (successNotice != null) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = successNotice!!,
-                        color = EmeraldPrimary,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                Spacer(modifier = Modifier.height(20.dp))
+
+                Button(
+                    onClick = {
+                        if (email.isBlank() || password.isBlank()) {
+                            errorMessage = "يرجى ملء البريد الإلكتروني وكلمة المرور"
+                            return@Button
+                        }
+                        isLoading = true
+                        errorMessage = null
+                        viewModel.loginAdmin(
+                            email = email.trim(),
+                            pass = password,
+                            onSuccess = {
+                                isLoading = false
+                                onSuccess()
+                            },
+                            onError = { err ->
+                                isLoading = false
+                                errorMessage = err
+                            }
+                        )
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary),
+                    shape = RoundedCornerShape(10.dp),
+                    enabled = !isLoading
+                ) {
+                    if (isLoading) {
+                        CircularProgressIndicator(
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("جاري التحقق من الصلاحيات...", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    } else {
+                        Icon(Icons.Default.LockOpen, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("دخول لوحة الإدارة", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    }
                 }
             }
         }

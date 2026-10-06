@@ -317,7 +317,7 @@ fun AdminDashboardScreen(
             title = { Text("تغيير كلمة مرور المشرف", fontWeight = FontWeight.Bold) },
             text = {
                 Column {
-                    Text("الحساب: laminedz.19@gmail.com", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("تحديث كلمة مرور حساب المشرف عبر Supabase Auth", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(modifier = Modifier.height(10.dp))
                     OutlinedTextField(
                         value = currentPasswordInput,

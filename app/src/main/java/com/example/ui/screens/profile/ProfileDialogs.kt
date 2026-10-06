@@ -402,6 +402,7 @@ fun ProfileTopUpDialog(
         confirmButton = {
             Button(
                 onClick = {
+                    if (isSubmittingTopUp) return@Button
                     val currentUid = viewModel.currentUserId.value
                     val isUserLoggedIn = currentUid.isNotBlank() && currentUid != "deleted"
                     if (!isUserLoggedIn) {
@@ -423,24 +424,43 @@ fun ProfileTopUpDialog(
                     val reqRef = topUpReferenceText
                     val reqReceipt = receiptImageUri
 
-                    // إغلاق النافذة فوراً عند إرسال طلب الشحن
-                    onDismiss()
-                    topUpReferenceText = ""
-                    receiptImageUri = ""
+                    isSubmittingTopUp = true
                     topUpErrorText = null
 
                     viewModel.submitTopUpRequest(
                         amount = reqAmount,
                         provider = reqProvider,
                         reference = reqRef,
-                        receiptImageUri = reqReceipt
+                        receiptImageUri = reqReceipt,
+                        onSuccess = {
+                            isSubmittingTopUp = false
+                            topUpReferenceText = ""
+                            receiptImageUri = ""
+                            topUpErrorText = null
+                            onDismiss()
+                        },
+                        onError = { err ->
+                            isSubmittingTopUp = false
+                            topUpErrorText = err
+                        }
                     )
                 },
+                enabled = !isSubmittingTopUp,
                 colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary)
             ) {
-                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("إرسال طلب الشحن للمراجعة")
+                if (isSubmittingTopUp) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp,
+                        color = Color.White
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("جاري الإرسال...", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                } else {
+                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("إرسال طلب الشحن للمراجعة")
+                }
             }
         },
         dismissButton = {
@@ -449,7 +469,8 @@ fun ProfileTopUpDialog(
                     onDismiss()
                     isSubmittingTopUp = false
                     topUpErrorText = null
-                }
+                },
+                enabled = !isSubmittingTopUp
             ) {
                 Text("إلغاء")
             }

@@ -14,8 +14,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockReset
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -38,7 +36,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -52,12 +49,7 @@ fun ForgotPasswordScreen(
     onBack: () -> Unit,
     onLogin: () -> Unit
 ) {
-    var email by remember { mutableStateOf("") }
-    var otpToken by remember { mutableStateOf("") }
-    var newPassword by remember { mutableStateOf("") }
-    var confirmNewPassword by remember { mutableStateOf("") }
-    var otpSent by remember { mutableStateOf(false) }
-
+    var identifier by remember { mutableStateOf("") }
     var isSubmitting by remember { mutableStateOf(false) }
     var feedback by remember { mutableStateOf<String?>(null) }
     var isError by remember { mutableStateOf(false) }
@@ -83,7 +75,7 @@ fun ForgotPasswordScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(30.dp))
             Icon(
                 imageVector = Icons.Default.LockReset,
                 contentDescription = null,
@@ -91,189 +83,29 @@ fun ForgotPasswordScreen(
                 modifier = Modifier.height(52.dp)
             )
             Text(
-                text = "استعادة كلمة المرور",
+                text = "هل نسيت كلمة المرور؟",
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center
             )
             Text(
-                text = if (!otpSent)
-                    "أدخل بريدك الإلكتروني لإرسال رمز المصادقة المباشر (OTP)."
-                else
-                    "أدخل رمز التحقق المكون من 6 أرقام المستلم في بريدك وكلمة المرور الجديدة.",
+                text = "أدخل بريدك الإلكتروني المسجل لإرسال رابط استعادة كلمة المرور.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
                 fontSize = 14.sp
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             OutlinedTextField(
-                value = email,
-                onValueChange = { email = it; feedback = null },
+                value = identifier,
+                onValueChange = { identifier = it; feedback = null },
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("البريد الإلكتروني") },
-                placeholder = { Text("example@domain.dz") },
-                leadingIcon = { Icon(Icons.Default.AccountCircle, contentDescription = null) },
+                placeholder = { Text("example@gmail.com") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                 singleLine = true,
-                enabled = !isSubmitting && !otpSent
+                enabled = !isSubmitting
             )
-
-            if (otpSent) {
-                androidx.compose.material3.Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = androidx.compose.material3.CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
-                    )
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Text(
-                            text = "تم إرسال رمز الاستعادة إلى: $email",
-                            color = EmeraldPrimary,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp
-                        )
-                        Text(
-                            text = "فحص صندوق البريد والرسائل غير المرغوب فيها (Spam).",
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-
-                OutlinedTextField(
-                    value = otpToken,
-                    onValueChange = {
-                        if (it.length <= 8) otpToken = it.filter { ch -> ch.isDigit() }
-                        feedback = null
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("رمز التحقق (6 أرقام)") },
-                    placeholder = { Text("123456") },
-                    leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    enabled = !isSubmitting
-                )
-
-                OutlinedTextField(
-                    value = newPassword,
-                    onValueChange = { newPassword = it; feedback = null },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("كلمة المرور الجديدة") },
-                    leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    singleLine = true,
-                    enabled = !isSubmitting
-                )
-
-                OutlinedTextField(
-                    value = confirmNewPassword,
-                    onValueChange = { confirmNewPassword = it; feedback = null },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("تأكيد كلمة المرور الجديدة") },
-                    leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    singleLine = true,
-                    enabled = !isSubmitting
-                )
-
-                Button(
-                    onClick = {
-                        if (otpToken.length < 4) {
-                            feedback = "يرجى إدخال رمز التحقق المستلم."
-                            isError = true
-                            return@Button
-                        }
-                        if (newPassword.length < 6) {
-                            feedback = "يجب أن تتكون كلمة المرور من 6 أحرف على الأقل."
-                            isError = true
-                            return@Button
-                        }
-                        if (newPassword != confirmNewPassword) {
-                            feedback = "كلمتا المرور غير متطابقتين."
-                            isError = true
-                            return@Button
-                        }
-
-                        isSubmitting = true
-                        feedback = null
-                        viewModel.resetPasswordWithOtp(
-                            email = email,
-                            token = otpToken,
-                            newPassword = newPassword,
-                            onSuccess = {
-                                isSubmitting = false
-                                isError = false
-                                feedback = "تم تعيين كلمة المرور الجديدة بنجاح! يمكنك الآن تسجيل الدخول."
-                            },
-                            onError = {
-                                isSubmitting = false
-                                isError = true
-                                feedback = it
-                            }
-                        )
-                    },
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
-                    enabled = !isSubmitting,
-                    colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary)
-                ) {
-                    if (isSubmitting) {
-                        CircularProgressIndicator(color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.height(22.dp))
-                    } else {
-                        Text("تأكيد وتعيين كلمة المرور", fontWeight = FontWeight.Bold)
-                    }
-                }
-
-                TextButton(
-                    onClick = {
-                        otpSent = false
-                        otpToken = ""
-                        feedback = null
-                    },
-                    enabled = !isSubmitting
-                ) {
-                    Text("تغيير البريد الإلكتروني")
-                }
-            } else {
-                Button(
-                    onClick = {
-                        if (email.isBlank() || !android.util.Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches()) {
-                            feedback = "يرجى إدخال بريد إلكتروني صحيح."
-                            isError = true
-                            return@Button
-                        }
-                        isSubmitting = true
-                        feedback = null
-                        viewModel.sendEmailOtp(
-                            email = email,
-                            shouldCreateUser = false,
-                            onSuccess = {
-                                isSubmitting = false
-                                isError = false
-                                otpSent = true
-                                feedback = "تم إرسال رمز الاستعادة إلى بريدك بنجاح."
-                            },
-                            onError = {
-                                isSubmitting = false
-                                isError = true
-                                feedback = it
-                            }
-                        )
-                    },
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
-                    enabled = !isSubmitting,
-                    colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary)
-                ) {
-                    if (isSubmitting) {
-                        CircularProgressIndicator(color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.height(22.dp))
-                    } else {
-                        Text("إرسال رمز الاستعادة إلى البريد", fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
 
             feedback?.let {
                 Text(
@@ -284,10 +116,53 @@ fun ForgotPasswordScreen(
                 )
             }
 
+            Button(
+                onClick = {
+                    val cleanEmail = identifier.trim().lowercase()
+                    if (cleanEmail.isBlank() || !android.util.Patterns.EMAIL_ADDRESS.matcher(cleanEmail).matches()) {
+                        feedback = "يرجى إدخال بريد إلكتروني صالح (مثال: example@gmail.com)"
+                        isError = true
+                        return@Button
+                    }
+                    isSubmitting = true
+                    feedback = null
+                    viewModel.requestPasswordReset(
+                        identifier = cleanEmail,
+                        onSuccess = {
+                            isSubmitting = false
+                            isError = false
+                            feedback = it
+                        },
+                        onError = {
+                            isSubmitting = false
+                            isError = true
+                            feedback = it
+                        }
+                    )
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp),
+                enabled = !isSubmitting,
+                colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary)
+            ) {
+                if (isSubmitting) {
+                    CircularProgressIndicator(color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.height(22.dp))
+                } else {
+                    Text("إرسال رابط الاستعادة", fontWeight = FontWeight.Bold)
+                }
+            }
+
             TextButton(onClick = onLogin, enabled = !isSubmitting) {
                 Text("العودة إلى تسجيل الدخول")
             }
-            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "ستتلقى رسالة على بريدك الإلكتروني تتضمن رابطاً أو تعليمات لاستعادة كلمة المرور.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 11.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(bottom = 24.dp)
+            )
         }
     }
 }
